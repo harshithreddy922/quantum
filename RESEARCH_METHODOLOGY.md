@@ -158,6 +158,8 @@ manuscript.
   implementation needs decoy states (Hwang 2003; Lo, Ma, Chen 2005) and
   decoy-state finite-key bounds (Lim et al. 2014). This is future work.
 - Afterpulsing, detector dead time and polarization drift are not modelled.
+- The Kalman tracker has no lock-loss detection or re-acquisition. Under heavy
+  oscillator wander at long range it can lose lock (Fig. 10b).
 - The classical-reference baseline is reduced to a constant residual error per
   block. Its σ (0.5 ns) is a parameter. Sub-100 ps systems such as White Rabbit
   would close much of the gap shown here.

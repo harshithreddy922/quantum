@@ -484,7 +484,9 @@ def fig08_distance(ctx):
     asym = np.array(asym)
     ax.plot(fine[asym > 0], asym[asym > 0], color=INK_2, linestyle=":", linewidth=1.1,
             label="Asymptotic, perfect sync")
-    for strategy in strategies:
+    # Preamble-only QCS loses lock within a 1 s block (see table_operating_points);
+    # it is simulated for the table but not drawn.
+    for strategy in ("classical", "qcs_tracking", "ideal"):
         label = rs.STRATEGY_LABELS[strategy]
         if strategy == "ideal":
             label += " (finite key)"
@@ -576,7 +578,8 @@ def fig09_heatmaps(ctx):
     matrix_b = np.array([[
         100 * r["secret_key_rate_mean"] / ideal[d]["secret_key_rate_mean"]
         if ideal[d]["secret_key_rate_mean"] > 0 else 0.0
-        for r in series_rows(rows_b, f"{d} km")] for d in distances])
+        # series_rows sorts by spacing ascending; reverse so columns follow the labels
+        for r in series_rows(rows_b, f"{d} km")[::-1]] for d in distances])
     _heatmap(axes[1], matrix_b, [f"{100 / s:.2g}" for s in spacings], [str(d) for d in distances],
              "Pilot overhead (% of slots)", "Fibre distance (km)",
              "Key rate relative to perfect sync (%)", fig)
@@ -731,11 +734,12 @@ def fig13_timing_attacks(ctx):
         csv_rows += [{"monitor_detections": n, "shift_ns": s, "detection_probability": p}
                      for s, p in zip(monitor_shifts, power[i])]
     info_04, _ = eve_information(monitor_shifts, 0.4, window, jitter)
+    for row in csv_rows:
+        if "monitor_detections" in row:
+            row["eve_information_bits_mismatch_0.4"] = float(np.interp(row["shift_ns"], monitor_shifts, info_04))
     axes[2].set_xlabel("Random time shift ±s (ns)")
     axes[2].set_ylabel("Attack flagged by QCS monitor (%)")
     axes[2].legend(loc="lower right", fontsize=6.2, title="false alarm 10⁻³", title_fontsize=6.2)
-    axes[2].text(0.98, 0.64, f"mismatch 0.4 ns: Eve's information\n\u2264 {info_04.max():.3f} bit over this range",
-                 transform=axes[2].transAxes, ha="right", va="center", color=INK_2, fontsize=6.2)
     for ax, letter in zip(axes, "abc"):
         panel_label(ax, letter)
     write_csv(csv_rows, "fig13_timing_attacks.csv")
