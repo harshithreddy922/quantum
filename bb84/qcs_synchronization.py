@@ -1,3 +1,11 @@
+"""
+Didactic clock-synchronization demo used by the interactive main.py.
+
+It assumes Bob sees every sync photon (no loss, no dark counts) and fits a
+line once at the start of the block. The research figures use the
+photon-limited model in bb84/qcs_tracking.py instead.
+"""
+
 import random
 
 
