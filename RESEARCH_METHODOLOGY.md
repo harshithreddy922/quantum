@@ -148,7 +148,8 @@ reference.
 | — | `table_operating_points` | Numbers for the comparison table in the paper |
 
 Every figure is saved as PDF (vector, for LaTeX) and 300 dpi PNG, next to a
-CSV of the plotted values. Figures carry no titles; captions belong in the
+CSV of the plotted values. Each panel of a multi-panel figure is also saved on its own
+in `research_outputs/panels/`. Legends always sit outside the plotting area. Figures carry no titles; captions belong in the
 manuscript.
 
 ## 4. Limitations to state in the paper

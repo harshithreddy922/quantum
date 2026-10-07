@@ -11,6 +11,7 @@ study. Every figure is written as PDF (vector, for the manuscript) and PNG
 import argparse
 import math
 import os
+import pickle
 import time
 from dataclasses import replace
 
@@ -101,7 +102,7 @@ class Context:
         return min(n, 10 ** 7) if self.quick else n
 
 
-def new_figure(ncols, width=DOUBLE_COLUMN, height=2.45, nrows=1):
+def new_figure(ncols, width=DOUBLE_COLUMN, height=3.1, nrows=1):
     fig, axes = plt.subplots(nrows, ncols, figsize=(width, height), constrained_layout=True)
     return fig, np.atleast_1d(axes).ravel()
 
@@ -111,8 +112,54 @@ def panel_label(ax, letter):
             ha="right", va="bottom", color=INK)
 
 
-def save(fig, name):
+PANEL_DIR = OUTPUT_DIR / "panels"
+PANEL_SIZE = (3.6, 3.3)
+
+
+def shared_legend(fig, ax, ncol=3):
+    """One legend for all panels, in a row above them (never over data)."""
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="outside upper center", ncol=ncol, borderaxespad=0.2)
+
+
+def below_legend(ax, ncol=1, **kwargs):
+    """Legend for one panel, placed under its x-axis label."""
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=ncol, **kwargs)
+
+
+def _export_panels(fig, name, panels):
+    """
+    Save every panel of a multi-panel figure as its own figure. The figure
+    is copied, all other axes are removed, and the remaining axes is given
+    the whole canvas plus its own legend underneath.
+    """
+    PANEL_DIR.mkdir(parents=True, exist_ok=True)
+    snapshot = pickle.dumps(fig)
+    indices = [fig.axes.index(ax) for ax in panels]
+    for letter, index in zip("abcdef", indices):
+        copy = pickle.loads(snapshot)
+        keep = copy.axes[index]
+        for other in list(copy.axes):
+            if other is not keep:
+                copy.delaxes(other)
+        for legend in list(copy.legends):
+            legend.remove()
+        keep.set_subplotspec(copy.add_gridspec(1, 1)[0])
+        if keep.get_legend() is None:
+            handles, labels = keep.get_legend_handles_labels()
+            if handles:
+                below_legend(keep, ncol=2)
+        copy.set_size_inches(*PANEL_SIZE)
+        copy.savefig(PANEL_DIR / f"{name}_{letter}.pdf")
+        copy.savefig(PANEL_DIR / f"{name}_{letter}.png")
+        plt.close(copy)
+
+
+def save(fig, name, panels=None):
+    """Save PDF + PNG; with panels, also save each panel on its own."""
     OUTPUT_DIR.mkdir(exist_ok=True)
+    if panels is not None and len(panels) > 1:
+        _export_panels(fig, name, panels)
     fig.savefig(OUTPUT_DIR / f"{name}.pdf")
     fig.savefig(OUTPUT_DIR / f"{name}.png")
     plt.close(fig)
@@ -136,10 +183,6 @@ def plot_metric(ax, rows, series, metric, style, label, scale=1.0, x_scale=1.0, 
         lower = np.minimum(ci, np.maximum(y, 0))   # all plotted metrics are non-negative
     ax.errorbar(x, y, yerr=[lower, ci], label=label, capsize=1.8, elinewidth=0.8,
                 markeredgewidth=0.9, **style)
-
-
-def strategy_legend(ax, **kwargs):
-    ax.legend(**{"loc": "best", **kwargs})
 
 
 # ---------------------------------------------------------------------------
@@ -236,10 +279,10 @@ def fig02_model_validation(ctx):
         analytic = [rs.expected_qber(replace(cfg, eve_rate=e)) * 100 for e in fine]
         ax.plot(fine, analytic, color=SERIES[i], linewidth=1.0)
         plot_metric(ax, rows, f"p={p}", "qber", dict(color=SERIES[i], marker=SERIES_MARKERS[i], linestyle="none"),
-                    f"Pauli p = {p:g}", scale=100)
+                    f"p = {p:g}", scale=100)
     ax.set_xlabel("Eve interception fraction")
     ax.set_ylabel("QBER (%)")
-    ax.legend(title="markers: simulation\nlines: closed form", title_fontsize=6.5)
+    below_legend(ax, ncol=3, title="Pauli error p (markers: simulation, lines: theory)", title_fontsize=6.5)
     panel_label(ax, "a")
 
     # (b) detection probability versus gate width, including dark counts
@@ -258,7 +301,7 @@ def fig02_model_validation(ctx):
                     dict(color=SERIES[i], marker=SERIES_MARKERS[i], linestyle="none"), f"{distance} km", scale=1e3)
     ax.set_xlabel("Detector gate width W (ns)")
     ax.set_ylabel("Click probability per slot (×10⁻³)")
-    ax.legend()
+    below_legend(ax, ncol=2, title="markers: simulation, lines: theory", title_fontsize=6.5)
     panel_label(ax, "b")
 
     # (c) acquisition accuracy against the Cramer-Rao bound
@@ -288,11 +331,11 @@ def fig02_model_validation(ctx):
     ax.set_yscale("log")
     ax.set_xlabel("Detected preamble photons")
     ax.set_ylabel("Timing error at preamble end (ps, RMS)")
-    ax.legend()
+    below_legend(ax, ncol=1)
     panel_label(ax, "c")
 
     write_csv(csv_rows, "fig02_model_validation.csv")
-    return save(fig, "fig02_model_validation")
+    return save(fig, "fig02_model_validation", axes)
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +343,7 @@ def fig02_model_validation(ctx):
 # ---------------------------------------------------------------------------
 
 def fig03_qber_security(ctx):
-    fig, axes = new_figure(2, width=DOUBLE_COLUMN * 0.72)
+    fig, axes = new_figure(2, width=DOUBLE_COLUMN * 0.85)
     base = ResearchConfig(num_slots=10 ** 6)
     noise = np.linspace(0, 0.3, 11)
     rows_a = rs.run_sweeps([
@@ -321,14 +364,15 @@ def fig03_qber_security(ctx):
     for ax, letter, xlabel in ((axes[0], "a", "Channel Pauli error probability p"),
                                (axes[1], "b", "Eve interception fraction")):
         ax.axhline(QBER_TOLERANCE * 100, color=INK_2, linestyle="--", linewidth=0.9)
-        ax.text(ax.get_xlim()[1], QBER_TOLERANCE * 100 + 0.4, "11 % abort threshold", ha="right",
-                va="bottom", color=INK_2, fontsize=6.5)
+        # Bottom-right of the threshold line is empty in both panels.
+        ax.text(ax.get_xlim()[1] - 0.02 * np.ptp(ax.get_xlim()), QBER_TOLERANCE * 100 - 0.6,
+                "11 % abort threshold", ha="right", va="top", color=INK_2, fontsize=6.5)
         ax.set_xlabel(xlabel)
         ax.set_ylabel("QBER (%)")
-        ax.legend(loc="upper left")
+        below_legend(ax, ncol=2)
         panel_label(ax, letter)
     write_csv(rows_a + rows_b, "fig03_qber_security.csv")
-    return save(fig, "fig03_qber_security")
+    return save(fig, "fig03_qber_security", axes)
 
 
 # ---------------------------------------------------------------------------
@@ -336,7 +380,7 @@ def fig03_qber_security(ctx):
 # ---------------------------------------------------------------------------
 
 def fig04_acceptance(ctx):
-    fig, axes = new_figure(1, width=SINGLE_COLUMN, height=2.6)
+    fig, axes = new_figure(1, width=SINGLE_COLUMN + 0.4, height=3.3)
     ax = axes[0]
     base = ResearchConfig()
     eve = np.round(np.arange(0, 0.6001, 0.025), 3)
@@ -360,7 +404,7 @@ def fig04_acceptance(ctx):
     ax.text(eve_at_threshold + 0.01, 50, "QBER = 11 %\n(asymptotic)", color=INK_2, fontsize=6.5, va="center")
     ax.set_xlabel("Eve interception fraction")
     ax.set_ylabel("Blocks producing a key (%)")
-    ax.legend(loc="upper right")
+    below_legend(ax, ncol=3, title="block size", title_fontsize=6.5)
     write_csv(rows, "fig04_acceptance.csv")
     return save(fig, "fig04_acceptance")
 
@@ -370,7 +414,7 @@ def fig04_acceptance(ctx):
 # ---------------------------------------------------------------------------
 
 def fig05_timing_impairments(ctx):
-    fig, axes = new_figure(3, height=2.55)
+    fig, axes = new_figure(3)
     base = ResearchConfig(num_slots=10 ** 5)
     trials = ctx.trials(50)
     panels = [
@@ -390,9 +434,9 @@ def fig05_timing_impairments(ctx):
         ax.set_ylabel("Timing capture (%)")
         ax.set_ylim(-4, 104)
         panel_label(ax, letter)
-    axes[0].legend(loc="center right", fontsize=6.3)
+    shared_legend(fig, axes[0])
     write_csv(all_rows, "fig05_timing_impairments.csv")
-    return save(fig, "fig05_timing_impairments")
+    return save(fig, "fig05_timing_impairments", axes)
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +444,7 @@ def fig05_timing_impairments(ctx):
 # ---------------------------------------------------------------------------
 
 def fig06_window_tradeoff(ctx):
-    fig, axes = new_figure(3, height=2.5)
+    fig, axes = new_figure(3)
     base = ResearchConfig(distance_km=125, num_slots=ctx.slots(10 ** 8))
     windows = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0]
     strategies = ("classical", "qcs_preamble", "qcs_tracking", "ideal")
@@ -418,9 +462,9 @@ def fig06_window_tradeoff(ctx):
         ax.set_ylabel(ylabel)
         panel_label(ax, letter)
     axes[1].axhline(QBER_TOLERANCE * 100, color=INK_2, linestyle="--", linewidth=0.9)
-    axes[0].legend(loc="lower right", fontsize=6.3)
+    shared_legend(fig, axes[0], ncol=4)
     write_csv(rows, "fig06_window_tradeoff.csv")
-    return save(fig, "fig06_window_tradeoff")
+    return save(fig, "fig06_window_tradeoff", axes)
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +472,7 @@ def fig06_window_tradeoff(ctx):
 # ---------------------------------------------------------------------------
 
 def fig07_sync_overhead(ctx):
-    fig, axes = new_figure(2, width=DOUBLE_COLUMN * 0.72)
+    fig, axes = new_figure(2, width=DOUBLE_COLUMN * 0.85)
     spacings = [1000, 300, 100, 30, 10]
     distances = (25, 75, 125)
     base = ResearchConfig(num_slots=ctx.slots(10 ** 8), freq_wander_ppm_per_sqrt_ms=0.1)
@@ -457,10 +501,10 @@ def fig07_sync_overhead(ctx):
     for ax, letter in zip(axes, "ab"):
         ax.set_xscale("log")
         ax.set_xlabel("Pilot overhead (% of slots)")
-        ax.legend()
         panel_label(ax, letter)
+    shared_legend(fig, axes[0])
     write_csv(rows, "fig07_sync_overhead.csv")
-    return save(fig, "fig07_sync_overhead")
+    return save(fig, "fig07_sync_overhead", axes)
 
 
 # ---------------------------------------------------------------------------
@@ -468,7 +512,7 @@ def fig07_sync_overhead(ctx):
 # ---------------------------------------------------------------------------
 
 def fig08_distance(ctx):
-    fig, axes = new_figure(1, width=SINGLE_COLUMN + 0.6, height=2.9)
+    fig, axes = new_figure(1, width=SINGLE_COLUMN + 0.9, height=4.0)
     ax = axes[0]
     base = ResearchConfig(num_slots=ctx.slots(10 ** 8))
     distances = [0, 10, 25, 50, 75, 100, 125, 150, 175, 200]
@@ -496,7 +540,7 @@ def fig08_distance(ctx):
     ax.set_xlim(-5, 215)
     ax.set_xlabel("Fibre distance (km)")
     ax.set_ylabel("Secret key rate (bits/slot)")
-    ax.legend(loc="lower left", fontsize=6.2)
+    below_legend(ax, ncol=2)
     write_csv(rows, "fig08_distance.csv")
     _write_operating_point_table(rows)
     return save(fig, "fig08_distance")
@@ -550,7 +594,7 @@ def _heatmap(ax, matrix, x_labels, y_labels, xlabel, ylabel, cbar_label, fig):
 
 
 def fig09_heatmaps(ctx):
-    fig, axes = new_figure(2, height=2.8)
+    fig, axes = new_figure(2, height=3.2)
     windows = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0]
     jitters = [0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1.0, 1.5]
     base = ResearchConfig(distance_km=125, num_slots=ctx.slots(10 ** 8))
@@ -595,7 +639,7 @@ def fig09_heatmaps(ctx):
 # ---------------------------------------------------------------------------
 
 def fig10_long_run(ctx):
-    fig, axes = new_figure(2, width=DOUBLE_COLUMN, height=2.5)
+    fig, axes = new_figure(2, width=DOUBLE_COLUMN)
     csv_rows = []
     for ax, letter, distance in zip(axes, "ab", (25, 125)):
         cfg = ResearchConfig(distance_km=distance, num_slots=ctx.slots(10 ** 8), freq_wander_ppm_per_sqrt_ms=0.2)
@@ -611,9 +655,9 @@ def fig10_long_run(ctx):
         ax.set_ylim(-4, 104)
         ax.set_title(f"{distance} km, oscillator wander 0.2 ppm/√ms", loc="left", color=INK_2)
         panel_label(ax, letter)
-    axes[0].legend(loc="center right", fontsize=6.3)
+    shared_legend(fig, axes[0])
     write_csv(csv_rows, "fig10_long_run.csv")
-    return save(fig, "fig10_long_run")
+    return save(fig, "fig10_long_run", axes)
 
 
 # ---------------------------------------------------------------------------
@@ -621,7 +665,7 @@ def fig10_long_run(ctx):
 # ---------------------------------------------------------------------------
 
 def fig11_finite_key(ctx):
-    fig, axes = new_figure(2, width=DOUBLE_COLUMN * 0.72, height=2.6)
+    fig, axes = new_figure(2, width=DOUBLE_COLUMN * 0.85)
     sizes = [10 ** 4, 3 * 10 ** 4, 10 ** 5, 3 * 10 ** 5, 10 ** 6, 3 * 10 ** 6, 10 ** 7, 3 * 10 ** 7, 10 ** 8]
     if ctx.quick:
         sizes = [n for n in sizes if n <= 10 ** 7]
@@ -643,9 +687,9 @@ def fig11_finite_key(ctx):
         ax.set_ylabel("Secret key rate (bits/slot)")
         ax.set_title(f"{distance} km", loc="left", color=INK_2)
         panel_label(ax, letter)
-    axes[1].legend(loc="lower right", fontsize=6.2)
+    shared_legend(fig, axes[1], ncol=4)
     write_csv(all_rows, "fig11_finite_key.csv")
-    return save(fig, "fig11_finite_key")
+    return save(fig, "fig11_finite_key", axes)
 
 
 # ---------------------------------------------------------------------------
@@ -653,7 +697,7 @@ def fig11_finite_key(ctx):
 # ---------------------------------------------------------------------------
 
 def fig12_key_budget(ctx):
-    fig, axes = new_figure(1, width=SINGLE_COLUMN + 0.4, height=2.7)
+    fig, axes = new_figure(1, width=SINGLE_COLUMN + 1.4, height=3.1)
     ax = axes[0]
     base = ResearchConfig(num_slots=ctx.slots(10 ** 7))
     eve = np.round(np.arange(0, 0.4501, 0.01), 3)
@@ -705,7 +749,7 @@ def fig12_key_budget(ctx):
 # ---------------------------------------------------------------------------
 
 def fig13_timing_attacks(ctx):
-    fig, axes = new_figure(3, height=2.5)
+    fig, axes = new_figure(3, height=3.5)
     window, jitter = 2.0, 0.35
     shifts = np.linspace(0, 1.5, 61)
     mismatches = (0.2, 0.4, 0.8)
@@ -719,10 +763,10 @@ def fig13_timing_attacks(ctx):
     axes[0].plot(shifts, np.zeros_like(shifts), color=INK, linestyle="--", label="QCS (uniform delay absorbed)")
     axes[0].set_xlabel("Reference delay / time shift (ns)")
     axes[0].set_ylabel("Eve's information (bits per sifted bit)")
-    axes[0].legend(loc="upper left", fontsize=6.2)
+    below_legend(axes[0], ncol=1)
     axes[1].set_xlabel("Reference delay / time shift (ns)")
     axes[1].set_ylabel("Bob's click rate (% of unattacked)")
-    axes[1].legend(loc="lower left", fontsize=6.2)
+    below_legend(axes[1], ncol=1)
 
     monitor_shifts = np.linspace(0, 0.6, 25)
     detections = (100, 1000, 10000)
@@ -739,11 +783,11 @@ def fig13_timing_attacks(ctx):
             row["eve_information_bits_mismatch_0.4"] = float(np.interp(row["shift_ns"], monitor_shifts, info_04))
     axes[2].set_xlabel("Random time shift ±s (ns)")
     axes[2].set_ylabel("Attack flagged by QCS monitor (%)")
-    axes[2].legend(loc="lower right", fontsize=6.2, title="false alarm 10⁻³", title_fontsize=6.2)
+    below_legend(axes[2], ncol=1, title="detections used (false alarm 10⁻³)", title_fontsize=6.5)
     for ax, letter in zip(axes, "abc"):
         panel_label(ax, letter)
     write_csv(csv_rows, "fig13_timing_attacks.csv")
-    return save(fig, "fig13_timing_attacks")
+    return save(fig, "fig13_timing_attacks", axes)
 
 
 FIGURES = [

@@ -19,6 +19,8 @@ amplification.
 - `generate_graphs.py` — generates the 13 paper figures, CSVs and the operating-point table.
 - `tests/` — checks of the model against closed-form results.
 - `research_outputs/` — generated figures (PDF and PNG), CSVs and `FIGURES.md` captions.
+- `research_outputs/panels/` — each panel of the multi-panel figures as its own larger image
+  (e.g. `fig05_timing_impairments_a.png`), for papers or slides that need single graphs.
 - `RESEARCH_METHODOLOGY.md` — model, assumptions, statistics, limitations and references.
 
 ## Setup
