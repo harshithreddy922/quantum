@@ -1,0 +1,17 @@
+distance_km,strategy,sync_overhead_pct,gate_rms_error_ps,timing_capture_pct,qber_pct,secret_key_rate_bits_per_slot,blocks_accepted_pct
+25,Classical reference,0.0,300.7,95.74,2.01,5.430e-02,100.0
+25,QCS (preamble only),0.0,3969430.4,0.14,23.63,3.166e-05,10.0
+25,QCS (preamble + pilot tracking),1.0,24.3,99.56,2.01,5.587e-02,100.0
+25,Perfect synchronization,0.0,0.0,99.57,2.01,5.658e-02,100.0
+50,Classical reference,0.0,425.1,91.5,2.04,1.586e-02,100.0
+50,QCS (preamble only),0.01,1465781.3,0.15,29.24,9.650e-07,10.0
+50,QCS (preamble + pilot tracking),1.01,37.7,99.55,2.03,1.706e-02,100.0
+50,Perfect synchronization,0.0,0.0,99.57,2.03,1.723e-02,100.0
+100,Classical reference,0.0,319.0,93.51,2.36,1.299e-03,100.0
+100,QCS (preamble only),0.05,155627.7,3.62,22.69,1.322e-05,20.0
+100,QCS (preamble + pilot tracking),1.05,89.2,99.43,2.32,1.378e-03,100.0
+100,Perfect synchronization,0.0,0.0,99.57,2.31,1.393e-03,100.0
+150,Classical reference,0.0,410.7,92.27,5.23,1.449e-05,90.0
+150,QCS (preamble only),0.53,96158.9,4.93,31.94,0.000e+00,0.0
+150,QCS (preamble + pilot tracking),1.53,261.4,97.64,5.11,1.668e-05,100.0
+150,Perfect synchronization,0.0,0.0,99.57,5.1,2.363e-05,100.0
