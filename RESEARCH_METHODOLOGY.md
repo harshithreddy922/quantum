@@ -10,18 +10,36 @@ Figure-by-figure captions and headline numbers are in
 The study evaluates **qubit-based clock synchronization (QCS) for BB84**:
 Bob recovers Alice's clock from the detection times of single-photon sync
 pulses that travel over the quantum channel itself, instead of relying on a
-separate classical timing link. The contributions are:
+separate classical timing link.
+
+In-band (qubit-based) synchronization is **already published** (Calderaro et
+al. 2020; Cochran and Gauthier 2021; Chen et al. 2023; Krause et al. 2025;
+Millet et al. 2026; Tiefenthaler et al. 2026) and must be cited, not claimed.
+The contributions of this work, stated "to our knowledge", are:
 
 1. A photon-limited synchronization model. Sync photons suffer the same fibre
    loss, detector inefficiency and dark counts as key photons, and the slots
    they occupy are charged to the key rate.
 2. A two-stage estimator: drift-search (2-D cross-correlation) acquisition on a
-   sparse preamble, followed by Kalman tracking on interleaved pilot pulses.
-   Its accuracy is validated against the Cramér–Rao bound (Fig. 2c).
+   sparse preamble, followed by **recursive Kalman tracking** of offset and
+   drift on interleaved secret pilot pulses, with innovation gating against
+   dark counts. Kalman filters are already used in **continuous-variable** QKD
+   to track the reference phase or polarization from bright pilot / coherent
+   measurements (Wang et al. 2019; Huang et al. 2020; Chin et al. 2021;
+   Kasthuri et al. 2024; review: Ma et al. 2022). The claim here is narrower:
+   Kalman tracking of the **clock (timing offset and drift)** in
+   **discrete-variable, photon-counting** QKD, where measurements are sparse
+   Poisson click times, dark counts are outliers that must be gated, and lock
+   can be lost; we found no prior work on this, and it is stated "to our
+   knowledge". Acquisition accuracy is validated against the Cramér–Rao
+   bound (Fig. 2c). Against a batch cross-correlation re-synchronization
+   baseline representative of published methods, run on the same pilots, the
+   tracker gives about 10x lower timing error and keeps lock where the batch
+   method fails (Fig. 14).
 3. A comparison against realistic baselines (no synchronization, a classical
-   timing reference with sub-ns residual error, preamble-only QCS, and perfect
-   synchronization) under clock offset, drift, frequency wander, jitter, gate
-   width, distance and block size.
+   timing reference with sub-ns residual error, preamble-only QCS, batch
+   re-synchronization, and perfect synchronization) under clock offset,
+   drift, frequency wander, jitter, gate width, distance and block size.
 4. Composable finite-key rates (Tomamichel et al. 2012) computed only from
    quantities Alice and Bob observe.
 5. A security analysis of the timing layer: a delay attack on a classical
@@ -59,6 +77,7 @@ Synchronization strategies (`research_simulation.SYNC_STRATEGIES`):
 | No synchronization | 0 (nominal schedule) | none |
 | Classical reference | true error + constant residual ~ N(0, 0.5 ns) per block | none (separate link) |
 | QCS, preamble only | acquisition fit, extrapolated for the whole block | preamble slots |
+| QCS, batch re-sync (baseline) | acquisition, then a fresh cross-correlation fit per batch of 32 pilot clicks, held until the next batch | preamble + 1 % pilot slots |
 | QCS, preamble + tracking | acquisition, then Kalman updates from pilots | preamble + 1 % pilot slots |
 | Perfect synchronization | true error | none |
 
@@ -77,6 +96,13 @@ updates a two-state Kalman filter (timing error, frequency error). The process
 noise is matched to the oscillator wander, and a 3σ innovation gate rejects
 dark counts (`run_timing_tracker`). Gates use only past updates (causal).
 
+**Batch baseline.** `run_batch_resync` uses exactly the same pilot clicks. It
+collects 32 clicks, fits the residual offset and drift with the same robust
+cross-correlation used for acquisition (search range ±100 ppm), and holds
+that line until the next batch completes. This represents the batch /
+cross-correlation family of published qubit-based methods; it is a
+re-implementation, not the authors' code.
+
 ### 2.2 Physical layer
 
 | Parameter | Default | Note |
@@ -89,31 +115,75 @@ dark counts (`run_timing_tracker`). Gates use only past updates (causal).
 | Gate width W | 2 ns | |
 | Clock offset / drift | 4 ns / 20 ppm | crystal-oscillator class |
 | Oscillator wander | 0.01 ppm/√ms | 0.1–0.2 ppm/√ms in stress tests |
-| Block size N | 10⁵–10⁸ slots | stated per figure |
+| Source | decoy-state weak coherent pulses | intensities μ = 0.5 / 0.2 / 0.0002, chosen with probability 0.6 / 0.2 / 0.2; Z basis with probability 0.8 (tuned for 10¹⁰-slot key blocks). An ideal single-photon source is available as `source="single_photon"` |
+| Sync segment | 10⁶–10⁸ slots | simulated pulse by pulse (offset, drift, wander, sync photons) |
+| Key block N | 10¹⁰ slots (100 s at 100 MHz) | privacy-amplification block; Figs. 4 and 11 vary it |
 
 Signal errors combine channel noise and Eve independently (XOR):
 e = e_ch(1 − e_E) + e_E(1 − e_ch), with e_E = f/4 for intercept-resend on a
 fraction f of pulses. Dark-count clicks and double clicks are assigned a
-random bit (error ½). Sync photons are simulated individually. Key-slot clicks
-are drawn from a binomial with the block's mean capture probability, which is
-exact in expectation and makes 10⁸-slot blocks tractable.
+random bit (error ½). Each intensity μ gives a click probability
+1 − exp(−η·C·μ) + dark counts, where η is fibre × detector transmittance and C
+the timing capture. Sync pulses are sent at the signal intensity and are
+simulated individually. Key-slot detections are drawn per (intensity, basis)
+category with multinomial and binomial draws using the segment's mean capture
+probability, which is exact in expectation.
+
+**Sync segment and key block.** Synchronization is simulated pulse by pulse
+over one segment (10⁸ slots = 1 s by default). Detection statistics are then
+accumulated over a key block of 10¹⁰ slots, assuming every segment in the
+block is synchronized with the same (stationary) statistics; the finite-key
+bound is applied to the key block. Decoy-state finite-key bounds need such
+long blocks: at 10⁸ slots the key vanishes before 100 km.
 
 ### 2.3 Protocol and security
 
-1. Sifting keeps matching bases (probability ½).
-2. A random 10 % of sifted bits is disclosed to estimate the QBER Q_test.
-3. The protocol aborts if Q_test > 11 %.
-4. The secure length follows Tomamichel et al. (2012):
+**Decoy-state BB84 (default)** follows Lim et al. (2014):
+
+1. Key bits come from Z-basis detections of all intensities; X-basis
+   detections estimate the phase error.
+2. Vacuum and single-photon detections s_Z,0 and s_Z,1 are lower-bounded from
+   the per-intensity counts with Hoeffding fluctuation terms; the
+   single-photon phase error φ_Z is upper-bounded from the X-basis errors.
+3. The secure length is
+
+       ℓ = s_Z,0 + s_Z,1 [1 − h(φ_Z)] − λ_EC − 6 log₂(21/ε_sec) − log₂(2/ε_cor)
+
+   with λ_EC = f·n_Z·h(E_Z), f = 1.16, ε_sec = 10⁻¹⁰, ε_cor = 10⁻¹⁵
+   (`bb84/security.decoy_key_components`).
+
+**Ideal single-photon source (`source="single_photon"`)**: 10 % of sifted
+bits estimate the QBER, the protocol aborts above 11 %, and the length
+follows Tomamichel et al. (2012):
 
        ℓ = n[1 − h(Q_test + μ)] − f·n·h(Q_test) − log₂(2/(ε_sec² ε_cor))
 
-   with f = 1.16, ε_sec = 10⁻¹⁰, ε_cor = 10⁻¹⁵ and μ the statistical
-   fluctuation term (`bb84/security.py`).
-5. Eve's true interception rate is never used in the key-length calculation.
+In both cases Eve's true interception rate is never used in the key length.
 
 The secret key rate is ℓ divided by **all** slots in the block, including sync
-overhead. Asymptotic Shor–Preskill rates and the PLOB bound are plotted for
-reference.
+overhead. Asymptotic rates (the same bounds without fluctuation terms) and the
+PLOB bound are plotted for reference.
+
+### 2.5 Analytical model of the tracker (`bb84/tracking_theory.py`)
+
+Pilot detections form a Poisson process with mean spacing
+Δ = pilot spacing × T_slot / p_detect. The frequency error performs a random
+walk with diffusion q (from the oscillator wander) and each detection
+measures the timing error with variance r = σ_jitter².
+
+1. **Steady state.** Iterating the Kalman predict/update equations at fixed Δ
+   gives the posterior covariance (P11, P12, P22).
+2. **Timing error.** Between updates V(t) = P11 + 2tP12 + t²P22 + qt³/3;
+   averaging over exponential gaps gives the mean-square gate error
+   P11 + 2P12Δ + 2P22Δ² + 2qΔ³. This matches the simulation within a few
+   percent wherever the tracker is locked (Fig. 15a).
+3. **Lock loss.** Two hazards: a gap long enough for the error to leave the
+   ±T_slot/2 pilot window, and a dark count accepted by the 3σ innovation
+   gate while V > r. Their rates give P_lost = 1 − exp(−λT) per segment,
+   which predicts the lock boundary to within one distance step (Fig. 15b).
+4. **Design rule.** Solving P_lost ≤ 1 % per second for the pilot spacing gives
+   the minimum pilot overhead versus distance and oscillator quality
+   (Fig. 15c).
 
 ### 2.4 Statistics and reproducibility
 
@@ -122,11 +192,16 @@ reference.
   the number of worker processes.
 - Error bars are 95 % confidence intervals of the mean (1.96·s/√n).
   Acceptance probabilities use Wilson intervals.
-- Trial counts: 50 for timing sweeps, 200 for acceptance, and 10–20 for
-  10⁸-slot blocks (heatmaps: 4 per cell).
-- `tests/test_research_model.py` checks the Monte Carlo against closed forms
-  (QBER, capture), checks acquisition under dark counts, and checks
-  reproducibility.
+- Sample size: every plotted point averages 100 to 1,000 independent blocks
+  (Monte Carlo repetitions) of 10⁶ to 10⁸ photon slots, i.e. 10⁸ to 10¹¹
+  simulated photon slots per point (heatmap cells: 50 blocks of 10⁸ slots;
+  Fig. 10: median and 10–90 % band over 100 one-second blocks). The exact
+  numbers and the median relative 95 % confidence half-width per figure are
+  written to `research_outputs/table_statistics.md` by every run.
+- `tests/test_research_model.py` (15 tests) checks the Monte Carlo against
+  closed forms (QBER, capture, decoy QBER), the decoy bound (finite below
+  asymptotic), the tracker theory against simulation, acquisition under dark
+  counts, and reproducibility.
 
 ## 3. Figures
 
@@ -145,7 +220,11 @@ reference.
 | 11 | `fig11_finite_key` | Convergence to the asymptotic rate with block size |
 | 12 | `fig12_key_budget` | Where the sifted bits go (test, EC, PA, finite-size) |
 | 13 | `fig13_timing_attacks` | Delay and time-shift attacks on the sync layer |
+| 14 | `fig14_kalman_vs_batch` | This work's Kalman tracking versus the batch re-sync baseline (novelty) |
+| 15 | `fig15_tracking_theory` | Analytical tracking error and lock-loss model versus simulation; minimum pilot overhead |
+| 16 | `fig16_fairness` | Batch size tuned for the baseline; classical-reference quality sweep |
 | — | `table_operating_points` | Numbers for the comparison table in the paper |
+| — | `table_statistics` | Sample size and precision behind every figure |
 
 Every figure is saved as PDF (vector, for LaTeX) and 300 dpi PNG, next to a
 CSV of the plotted values. Each panel of a multi-panel figure is also saved on its own
@@ -155,20 +234,20 @@ manuscript.
 ## 4. Limitations to state in the paper
 
 - This is a simulation study, not an optical experiment.
-- The source is an ideal single-photon source. A weak-coherent-pulse
-  implementation needs decoy states (Hwang 2003; Lo, Ma, Chen 2005) and
-  decoy-state finite-key bounds (Lim et al. 2014). This is future work.
-- Afterpulsing, detector dead time and polarization drift are not modelled.
+- Decoy-state statistics are accumulated over 10¹⁰-slot key blocks assuming
+  stationary synchronization across the 1 s segments of a block.
+- Polarization drift, afterpulsing and detector dead time are not modelled.
 - The Kalman tracker has no lock-loss detection or re-acquisition. Under heavy
   oscillator wander at long range it can lose lock (Fig. 10b).
 - The classical-reference baseline is reduced to a constant residual error per
-  block. Its σ (0.5 ns) is a parameter. Sub-100 ps systems such as White Rabbit
-  would close much of the gap shown here.
+  block. Fig. 16b sweeps it: a classical reference better than about 100–200 ps
+  matches or exceeds QCS (which pays about 1 % pilot overhead); QCS's advantage
+  is at larger classical errors and in the timing-attack resistance (Fig. 13).
 - The time-shift analysis assumes a rectangular-gate efficiency mismatch
   blurred by Gaussian jitter. Real detectors have smoother mismatch curves.
 - The intercept-resend attack is used for QBER behaviour only. Security of the
-  key length comes from the finite-key bound, which covers general attacks on
-  the BB84 single-photon source assumed here.
+  key length comes from the decoy-state finite-key bound, which covers general
+  attacks, including photon-number splitting.
 
 ## 5. Reproduce
 
@@ -181,6 +260,27 @@ python generate_graphs.py --only fig08    # one figure
 ```
 
 ## 6. References (verify page numbers before submission)
+
+Related qubit-based synchronization work (cite in the related-work section):
+
+- L. Calderaro et al., Phys. Rev. Applied 13, 054041 (2020) — Qubit4Sync.
+- R. D. Cochran, D. J. Gauthier, Entropy 23, 988 (2021) — Bayesian qubit-based synchronization.
+- Y. Chen et al., arXiv:2308.13154 — qubit-based distributed frame synchronization; R. Guan et al., arXiv:2510.17659 — field trial.
+- J. Krause et al., Phys. Rev. Applied 23, 044015 (2025) — iQSync offset recovery.
+- C. Spiess, F. Steinlechner, Quantum Sci. Technol. (2023) — clock synchronization with pulsed single photons.
+- L. Millet et al., arXiv:2605.26705 (2026) — clock-drift model and synchronization algorithm.
+- L. Tiefenthaler et al., Optics Express (2026), arXiv:2605.20857 — decoy-state-based time synchronization.
+
+Kalman filtering in QKD (all continuous-variable phase/polarization tracking,
+not clock synchronization; cite to delimit the claim):
+
+- Y. Wang, P. Huang, et al., Opt. Express 27(19), 26689 (2019) — Kalman polarization tracking in CV-QKD.
+- P. Huang, D. Huang, Z. Peng, Opt. Express 28(19), 28727 (2020) — Kalman reference-phase tracking in CV-QKD.
+- H.-M. Chin et al., npj Quantum Inf. 7, 20 (2021) — unscented Kalman phase compensation in CV-QKD.
+- J. Ma, et al., Symmetry 14(12), 2478 (2022) — review of Kalman filtering in quantum systems.
+- Kasthuri et al., Optica Applicata 54(4), 483 (2024) — EKF + RNN phase estimation in CV-QKD.
+
+Foundations:
 
 - C. H. Bennett, G. Brassard, Proc. IEEE ICCSSP, 175 (1984).
 - P. W. Shor, J. Preskill, Phys. Rev. Lett. 85, 441 (2000).

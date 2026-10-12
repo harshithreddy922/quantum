@@ -1,12 +1,23 @@
 # Figure captions and headline results
 
-Default parameters unless stated: T = 10 ns slots, 0.2 dB/km fibre,
-detector efficiency 0.6, dark counts 10⁴ Hz per detector, Pauli p = 0.03
-(2 % optical QBER), σ = 0.35 ns jitter, W = 2 ns gates, clock offset 4 ns,
-drift 20 ppm, wander 0.01 ppm/√ms, 1 % pilots, classical-reference residual
-0.5 ns, ε_sec = 10⁻¹⁰, ε_cor = 10⁻¹⁵. Error bars are 95 % confidence
-intervals of the mean; shaded bands in Fig. 4 are Wilson intervals. Numbers
-come from the CSV beside each figure.
+Default parameters unless stated: decoy-state BB84 with weak coherent pulses
+(intensities μ = 0.5 / 0.2 / 0.0002 sent with probabilities 0.6 / 0.2 / 0.2,
+Z basis chosen with probability 0.8), key blocks of N = 10¹⁰ pulse slots,
+T = 10 ns slots, 0.2 dB/km fibre, detector efficiency 0.6, dark counts 10⁴ Hz,
+Pauli p = 0.03 (2 % optical QBER), σ = 0.35 ns jitter, W = 2 ns gates, clock
+offset 4 ns, drift 20 ppm, wander 0.01 ppm/√ms, 1 % pilots, classical-reference
+residual 0.5 ns, ε_sec = 10⁻¹⁰, ε_cor = 10⁻¹⁵. Synchronization is simulated
+pulse by pulse over a 10⁸-slot segment (1 s) and is assumed stationary over
+the rest of the key block. Error bars are 95 % confidence intervals of the
+mean; Fig. 4 uses Wilson intervals. The sample size behind every figure
+(10¹¹–10¹⁴ simulated pulse slots per figure) is listed in
+`table_statistics.md`. Numbers come from the CSV beside each figure.
+
+The strategies compared are: no synchronization; a classical timing
+reference; QCS with a preamble only; QCS with batch cross-correlation
+re-synchronization on pilots (representative of published qubit-based
+synchronization, e.g. Qubit4Sync); QCS with Kalman pilot tracking (this
+work); and perfect synchronization.
 
 **Fig. 1 — System model.**
 (a) Alice, the quantum channel and Bob, with the QCS acquisition/tracking
@@ -15,114 +26,158 @@ emissions, photon arrivals shifted by clock offset and drift, Bob's nominal
 gates (miss), and QCS-corrected gates (hit).
 
 **Fig. 2 — Model validation.**
-(a) Simulated QBER (markers) matches the closed form
-e = e_ch(1 − f/4) + (f/4)(1 − e_ch) for three noise levels. (b) Click
-probability per slot against gate width at 100 and 150 km matches
-η·erf(W/(2√2σ)) plus gate-width-dependent dark counts. (c) Timing error at
-the end of the acquisition preamble approaches the Cramér–Rao bound
-σ·√((4n − 2)/(n(n + 1))) once more than about 15 photons are detected. With
-fewer photons, dark-count outliers occasionally break acquisition.
+(a) Simulated QBER (markers) matches the closed form for three channel noise
+levels against Eve's interception fraction. (b) Click probability per slot
+against gate width at 100 and 150 km matches η·erf(W/(2√2σ)) plus
+gate-width-dependent dark counts. (c) Timing error at the end of the
+acquisition preamble against the number of detected photons n, with the
+Cramér–Rao bound σ·√((4n − 2)/(n(n + 1))). The estimator is within 7 % of the
+bound for n ≥ 32 (e.g. 64 photons: 96 ps against 86 ps) and within 25 % for
+n = 16. With 4–8 photons dark-count outliers occasionally break acquisition.
 
 **Fig. 3 — QBER under noise and attack.**
 (a) QBER against channel Pauli error probability, with no Eve and with 20 %
 interception. (b) QBER against Eve's interception fraction for a noiseless
-channel and p = 0.03. The 11 % abort threshold is crossed at an interception
-fraction of about 0.37 (noisy channel) and 0.44 (noiseless channel).
+channel and p = 0.03. The QBER rises by f/4: the 11 % abort threshold is
+crossed at f ≈ 0.37 (p = 0.03) and f ≈ 0.44 (noiseless).
 
 **Fig. 4 — Finite-size acceptance.**
-Fraction of blocks that yield a positive finite-key length against Eve's
-interception fraction. Blocks have 10⁵, 10⁶ and 10⁷ slots (200 blocks per
-point). The 50 % point moves from f ≈ 0.075 (10⁵) to 0.25 (10⁶) and 0.30
-(10⁷), towards the asymptotic QBER = 11 % limit (dashed). Small blocks abort
-early because the statistical correction μ consumes the margin.
+Fraction of blocks (1 000 per point) that yield a positive decoy-state
+finite key against Eve's interception fraction, for N = 10⁸, 10⁹ and 10¹⁰
+slots. The last accepted interception fraction moves from 0.075 (10⁸) to
+0.125 (10⁹) and 0.15 (10¹⁰), approaching the point where even the
+asymptotic key vanishes (dashed). Small blocks stop earlier because the
+statistical corrections consume the margin.
 
-**Fig. 5 — Robustness to timing impairments (1 ms blocks, 25 km).**
-Timing capture against (a) initial offset, (b) drift with zero offset and
-(c) jitter, for five strategies.
-- Without synchronization, capture is below 5 % except at zero drift.
-- The classical reference loses 7–13 % to its 0.5 ns residual.
+**Fig. 5 — Robustness to timing impairments (25 km).**
+Timing capture against (a) initial offset, (b) drift and (c) jitter.
+- Without synchronization capture is below 1 % except at zero drift.
+- The classical reference loses 8–12 % to its 0.5 ns residual.
 - Preamble-only QCS extrapolates its drift estimate over the block and keeps
-  only 20–30 %.
-- QCS with pilot tracking stays within 0.1 % of perfect synchronization
+  6–10 %.
+- Batch re-sync keeps 95–97 %.
+- Kalman tracking keeps 99.5 %, within 0.05 % of perfect synchronization,
   across 0–20 ns offset and 0–200 ppm drift. At large jitter all strategies
   converge to the erf limit set by W/σ.
 
-**Fig. 6 — Gate-width trade-off at 125 km (N = 10⁸).**
-(a) Timing capture, (b) QBER and (c) finite-key secret key rate against gate
-width W. Dark counts grow with W, so the key rate has an optimum.
-- QCS tracking: optimum at W ≈ 1.5–2 ns, 3.07×10⁻⁴ bits/slot (perfect sync:
-  3.20×10⁻⁴).
-- Classical reference: 2.75×10⁻⁴ at W = 2 ns. It needs W ≈ 3 ns to absorb
-  its residual error.
-- Preamble-only QCS: produces no key.
+**Fig. 6 — Gate-width trade-off at 100 km.**
+(a) Timing capture, (b) QBER and (c) finite-key rate against gate width W.
+Dark counts grow with W, so the key rate has an optimum.
+- Kalman tracking: optimum 2.40×10⁻⁴ bits/slot at W = 1.5 ns (perfect sync
+  2.48×10⁻⁴).
+- Batch re-sync: 2.22×10⁻⁴ at W = 2 ns. Classical reference: 2.01×10⁻⁴ at
+  W = 2 ns; it needs wider gates to absorb its residual error.
+- At W = 0.5 ns tracking keeps 91 % of the perfect-sync rate, batch 68 %
+  and the classical reference 48 %.
+- Preamble-only QCS produces no key.
 
-**Fig. 7 — Synchronization overhead (N = 10⁸, wander 0.1 ppm/√ms).**
+**Fig. 7 — Pilot overhead.**
 (a) RMS gate timing error and (b) key rate, normalized to the best overhead,
-against the fraction of slots used as pilots.
-- At 25 and 75 km, 0.1–1 % pilots reach 20–300 ps error, and the key rate is
-  flat to within 10 %.
-- At 125 km tracking loses lock below about 1 % pilots: errors reach the
-  nanosecond-to-microsecond range and the key collapses.
-- The best overhead therefore grows with distance (≈ 3 % at 125 km).
+against the fraction of slots used as pilots, at 25, 75 and 100 km.
+- At 25 km even 0.1 % pilots give 140 ps error and the full key rate.
+- At 75 km and 100 km lock is lost in a growing share of runs below about
+  1 % pilots (100 km: 3 % of runs at 1 %, 75 % at 0.33 %, all at 0.1 %;
+  75 km: 45 % at 0.1 %), and the mean error rises to 15–550 ns. At 0.1 %
+  pilots the key falls to 74 % (75 km) and 5 % (100 km) of the best.
+- 1 % pilots keep ≥ 99 % of the best key at all three distances; 3.3 %
+  gives ≤ 140 ps error everywhere; 10 % costs about 10 % of the key for
+  little gain.
 
-**Fig. 8 — Secret key rate against distance (N = 10⁸).**
-Finite-key rate for the classical reference, QCS with tracking and perfect
-synchronization, with the asymptotic perfect-sync rate and the PLOB bound
-for reference.
-- QCS tracking is within 1.5 % of perfect synchronization up to 100 km.
-- It beats the classical reference by 3 % at 25 km, 8 % at 50 km, 6 % at
-  100 km and 15 % at 150 km.
-- Between 150 and 175 km all strategies stop producing a key: dark counts
-  push the QBER above threshold and finite-size effects dominate.
-- Preamble-only QCS loses lock within a 1 s block and is omitted here (see
-  the table).
+**Fig. 8 — Secret key rate against distance.**
+Finite-key rate for each strategy, with the asymptotic perfect-sync rate and
+the PLOB bound.
+- Kalman tracking is within 2 % of perfect synchronization up to 100 km.
+- It exceeds the classical reference by 6 % (25 km), 11 % (50 km), 13 %
+  (75 km) and 12 % (100 km), and batch re-sync by 2–5 %.
+- At 125 km only tracking and perfect sync give a (tiny) key; nothing is
+  extractable at ≥ 150 km with 10¹⁰-slot blocks.
+- Preamble-only QCS gives essentially no key at any distance.
 
-**Fig. 9 — Sensitivity maps (QCS tracking).**
-(a) Finite-key rate at 125 km over gate width × jitter. The optimal W widens
-with jitter, from ≤ 1 ns at σ ≤ 0.1 ns to 3–6 ns at σ ≥ 1 ns. (b) Key rate relative to perfect synchronization over
-distance × pilot overhead (wander 0.1 ppm/√ms).
-- At ≤ 100 km, 0.33–3.3 % pilots give ≥ 95 % of the ideal rate.
-- At 125 km, at least 1 % is needed.
-- At 150 km, at least 3.3 % is needed; even then QCS recovers only about 60 %
-  of the ideal rate.
+**Fig. 9 — Sensitivity maps (Kalman tracking).**
+(a) Finite-key rate at 100 km over gate width × jitter. The best gate widens
+with jitter, from 0.5–0.75 ns at σ ≤ 0.1 ns to 3–4 ns at σ ≥ 1 ns.
+(b) Key rate relative to perfect synchronization over distance × pilot
+overhead.
+- Up to 50 km every overhead from 0.1 % to 3.3 % gives ≥ 96 %.
+- At 75 km ≥ 0.33 % pilots are needed; at 100 km ≥ 1 % (95 %).
+- 10 % pilots cap the rate at about 88–90 %.
 
-**Fig. 10 — Long-run stability over a 1 s block (wander 0.2 ppm/√ms).**
-Timing capture over time at (a) 25 km and (b) 125 km.
-- Preamble-only QCS loses alignment within milliseconds.
-- Pilot tracking holds about 99.5 % capture at 25 km.
-- At 125 km pilot tracking dips whenever no pilot is detected for several
-  milliseconds. In this realization it loses lock at about 900 ms and does
-  not recover, because the tracker has no re-acquisition step. Lock-loss
-  detection with automatic re-acquisition is the obvious extension; at long
-  range, more pilots (Fig. 9b) are needed.
-- The classical reference is flat at a level set by its residual offset.
+**Fig. 10 — Long-run stability over a 1 s segment (wander 0.2 ppm/√ms).**
+Median timing capture over 100 independent runs with a 10–90 % band, at
+(a) 25 km and (b) 125 km.
+- At 25 km Kalman tracking holds 99.5 % throughout, batch re-sync 96–98 %,
+  the classical reference 96.8 %; preamble-only QCS loses alignment within
+  milliseconds.
+- At 125 km with this poor oscillator batch re-sync loses lock within about
+  20 ms and Kalman tracking within about 100 ms (median; some runs last
+  ~250 ms). The tracker has no re-acquisition step; lock-loss detection with
+  automatic re-acquisition is the obvious extension, and Fig. 15c gives the
+  pilot overhead needed to avoid it.
 
 **Fig. 11 — Finite-key convergence.**
-Secret key rate against block size at (a) 25 km and (b) 100 km. All
-strategies approach the asymptotic limit (dotted) slowly. At 100 km no key
-is possible below about 10⁶ slots. QCS tracking matches perfect
-synchronization once N ≥ 3×10⁵ (25 km) or 3×10⁶ (100 km).
+Key rate against key-block size N at (a) 25 km and (b) 100 km.
+- At 25 km Kalman tracking stays within 1–2 % of perfect synchronization for
+  all N; the classical reference is 9–12 % lower.
+- At 100 km no key is possible below about 3×10⁹ slots; tracking is within
+  2–3 % of perfect sync from there on.
+- Both converge slowly towards the asymptotic limit (dotted).
 
-**Fig. 12 — Where the sifted bits go (25 km, N = 10⁷).**
-Breakdown of sifted bits into test bits, error-correction leakage,
-asymptotic and finite-size privacy amplification, and the final key, against
-Eve's interception fraction. Without Eve 55 % of sifted bits become key. The
-protocol aborts at f ≈ 0.30, before the asymptotic threshold, because of the
-finite-size penalty.
+**Fig. 12 — Where the key-basis detections go (25 km, N = 10¹⁰, analytic).**
+Decoy-state key budget against Eve's interception fraction. Without Eve 34 %
+of Z-basis detections become secret key; 38 % are not certified as single
+photon (multi-photon pulses), 17 % are spent on error correction and 12 % on
+privacy amplification. The finite-size fixed cost is negligible at this
+block size. The key vanishes at f ≈ 0.16.
 
 **Fig. 13 — Timing side-channel attacks** (W = 2 ns, σ = 0.35 ns).
 (a) Eve's information per sifted bit when she delays a classical timing
-reference, for detector gate mismatch 0.2, 0.4 and 0.8 ns. With mismatch
-0.8 ns, a 1 ns delay leaks 0.45 bit per sifted bit, and the QBER is
-unchanged. QCS derives timing from the photons themselves, so a uniform delay
-is absorbed and leaks nothing. (b) The same delay reduces Bob's click rate
-(about 50 % at 1 ns), which is the only symptom visible without timing
-analysis. (c) Against a random ±s time-shift attack, the variance test on
-QCS arrival-time residuals (false-alarm rate 10⁻³) detects the attack with
-99 % probability at s = 0.20 ns using 1 000 detections, or s = 0.125 ns using
-10 000 detections. Over this range, Eve's information for 0.4 ns mismatch
-stays below 0.015 bit.
+reference, for detector gate mismatch 0.2, 0.4 and 0.8 ns. With 0.8 ns
+mismatch a 1 ns delay leaks about 0.45 bit per sifted bit without raising the
+QBER. QCS derives timing from the photons themselves, so a uniform delay is
+absorbed and leaks nothing. (b) The delay reduces Bob's click rate (about
+50 % at 1 ns), the only symptom visible without timing analysis. (c) Against
+a random ±s time-shift attack, a variance test on QCS arrival-time residuals
+(false-alarm rate 10⁻³) detects the attack with > 90 % probability at
+s = 0.325 ns (100 detections), 0.175 ns (1 000) and 0.10 ns (10 000).
+
+**Fig. 14 — Kalman tracking versus batch re-synchronization (novelty).**
+Both run on the same 1 % pilots, for a stable (0.01 ppm/√ms) and a poor
+(0.2 ppm/√ms) oscillator. (a) Median gate timing error, (b) mean timing
+capture, (c) key rate relative to perfect synchronization.
+- Stable oscillator: Kalman 25–121 ps up to 100 km against 244–323 ps for
+  batch, i.e. 3–10× lower. At 125 km batch loses lock in 92 % of runs and
+  produces no key; Kalman loses lock in 3 % and keeps a key.
+- Poor oscillator: batch loses lock from 75 km (93 % of runs) and gives no
+  key at 100 km; Kalman holds up to 75 km (167 ps, 98 % of the ideal key)
+  and keeps 71 % at 100 km.
+
+**Fig. 15 — Analytical model of the tracker.**
+(a) RMS gate error from the steady-state Riccati solution (lines) against
+simulation (markers): e.g. 31.7 vs 32.1 ps at 25 km and 117 vs 121 ps at
+100 km (stable oscillator); 67 vs 68 ps and 286 vs 323 ps (poor). Agreement
+is within a few percent until lock loss starts. (b) Probability of losing
+lock within 1 s. Theory places the 50 % point at 132 km (stable) and 90 km
+(poor); simulation shows 3 % → 76 % between 125 and 150 km and 0 % → 41 % →
+100 % between 75, 100 and 125 km, respectively. (c) Design rule: minimum
+pilot overhead for < 1 % lock loss per second against distance for three
+oscillator qualities. With a stable oscillator 1 % pilots suffice up to
+about 120 km; a poor oscillator needs 3.2 % at 100 km.
+
+**Fig. 16 — Fairness checks on the baselines.**
+(a) The batch baseline's batch size is swept (8–256 clicks) with the poor
+oscillator. Its best setting (64 clicks: 207 ps at 25 km; 16 clicks: 1.3 ns at
+100 km) is still 3× (25 km) and 4× (100 km) worse than Kalman tracking
+(69 ps and 287 ps), so the advantage is not an artefact of a badly tuned
+baseline. (b) Key rate against the classical reference's timing error. A
+classical reference better than about 200 ps RMS matches QCS tracking
+(≥ 99 % of perfect sync); at 0.5 ns it gives 83–88 % and at 1 ns 56–67 %. The
+benefit of QCS is therefore removing the separate timing link and its attack
+surface at equal performance, not beating a high-quality classical reference.
 
 **Table — `table_operating_points.md`.**
 Overhead, gate timing error, capture, QBER, key rate and acceptance at 25,
-50, 100 and 150 km for each strategy (N = 10⁸).
+50, 75 and 100 km for each strategy.
+
+**Table — `table_statistics.md`.**
+Points, blocks per point, slots per block, total simulated pulse slots and
+median relative 95 % CI for every figure.

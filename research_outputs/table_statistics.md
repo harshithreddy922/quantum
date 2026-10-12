@@ -1,0 +1,22 @@
+Monte Carlo sample size behind every figure. A block is one simulated key exchange of `slots_per_block` pulse slots (the privacy-amplification block; synchronization is simulated pulse by pulse over 10^6-10^8-slot segments); each plotted point averages `blocks_per_point` independent blocks. `median_rel_ci95_pct` is the median 95 % confidence half-width of the plotted metric relative to its mean.
+
+| figure | metric | points | blocks_per_point | slots_per_block | photon_slots_per_point | total_photon_slots | median_rel_ci95_pct |
+|---|---|---|---|---|---|---|---|
+| fig02a | qber | 33 | 200 | 1e+10 | 2.0e+12 | 6.60e+13 | 0.002 |
+| fig02b_100km | detection_rate | 10 | 100 | 1e+10 | 1.0e+12 | 1.00e+13 | 0.005 |
+| fig02b_150km | detection_rate | 10 | 100 | 1e+10 | 1.0e+12 | 1.00e+13 | 0.013 |
+| fig03 | qber | 44 | 200 | 1e+10 | 2.0e+12 | 8.80e+13 | 0.002 |
+| fig04 | accepted | 75 | 1,000 | 1e+08-1e+10 | 1.0e+11 | 2.78e+14 | 0.000 |
+| fig05 | timing_capture_rate | 150 | 200 | 1e+10 | 2.0e+12 | 3.00e+14 | 0.168 |
+| fig06 | secret_key_rate | 45 | 100 | 1e+10 | 1.0e+12 | 4.50e+13 | 0.505 |
+| fig07 | secret_key_rate | 15 | 100 | 1e+10 | 1.0e+12 | 1.50e+13 | 0.111 |
+| fig08 | secret_key_rate | 50 | 100 | 1e+10 | 1.0e+12 | 5.00e+13 | 1.200 |
+| fig09a | secret_key_rate | 64 | 50 | 1e+10 | 5.0e+11 | 3.20e+13 | 0.635 |
+| fig09b | secret_key_rate | 30 | 50 | 1e+10 | 5.0e+11 | 1.50e+13 | 0.099 |
+| fig10 | timing_capture (median, 10-90 % band) | 200 | 100 | 1e+08 | 1.0e+10 | 1.20e+11 |  |
+| fig11_100km | secret_key_rate | 21 | 100 | 1e+08-1e+11 | 1.0e+10 | 4.33e+13 | 0.600 |
+| fig11_25km | secret_key_rate | 21 | 100 | 1e+08-1e+11 | 1.0e+10 | 4.33e+13 | 0.142 |
+| fig12 | expected-count budget (analytic) | 61 | analytic | 1e+10 | 9.9e+09 |  |  |
+| fig14 | sync_rms_error_ns | 28 | 100 | 1e+10 | 1.0e+12 | 2.80e+13 | 11.215 |
+| fig16a | sync_rms_error_ns | 14 | 100 | 1e+10 | 1.0e+12 | 1.40e+13 | 19.450 |
+| fig16b | secret_key_rate | 16 | 100 | 1e+10 | 1.0e+12 | 1.60e+13 | 0.297 |
