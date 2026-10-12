@@ -839,7 +839,7 @@ def fig11_finite_key(ctx):
 
 def fig12_key_budget(ctx):
     """Where the key-basis detections go: decoy-state BB84, 25 km, 10^10-slot key block."""
-    fig, axes = new_figure(1, width=SINGLE_COLUMN + 1.6, height=3.1)
+    fig, axes = new_figure(1, width=SINGLE_COLUMN + 0.6, height=4.0)
     ax = axes[0]
     base = ResearchConfig()
     capture = erf(base.detector_window_ns / 2 / (base.timing_jitter_ns * math.sqrt(2)))
@@ -879,7 +879,7 @@ def fig12_key_budget(ctx):
     ax.set_xlabel("Eve interception fraction")
     ax.set_ylabel("Share of key-basis detections (%)")
     handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles[::-1], labels[::-1], loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=6.3)
+    ax.legend(handles[::-1], labels[::-1], loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=1, fontsize=6.3)
     ax.grid(False)
     STATS["fig12"] = {"figure": "fig12", "metric": "expected-count budget (analytic)", "points": len(budget),
                       "blocks_per_point": "analytic", "slots_per_block": f"{base.key_block_slots:.0e}",

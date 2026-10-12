@@ -13,3 +13,10 @@ Monte Carlo sample size behind every figure. A block is one simulated key exchan
 | fig08 | secret_key_rate | 50 | 100 | 1e+10 | 1.0e+12 | 5.00e+13 | 1.200 |
 | fig09a | secret_key_rate | 64 | 50 | 1e+10 | 5.0e+11 | 3.20e+13 | 0.635 |
 | fig09b | secret_key_rate | 30 | 50 | 1e+10 | 5.0e+11 | 1.50e+13 | 0.099 |
+| fig10 | timing_capture (median, 10-90 % band) | 200 | 100 | 1e+08 | 1.0e+10 | 1.20e+11 |  |
+| fig11_100km | secret_key_rate | 21 | 100 | 1e+08-1e+11 | 1.0e+10 | 4.33e+13 | 0.600 |
+| fig11_25km | secret_key_rate | 21 | 100 | 1e+08-1e+11 | 1.0e+10 | 4.33e+13 | 0.142 |
+| fig12 | expected-count budget (analytic) | 61 | analytic | 1e+10 | 9.9e+09 |  |  |
+| fig14 | sync_rms_error_ns | 28 | 100 | 1e+10 | 1.0e+12 | 2.80e+13 | 11.215 |
+| fig16a | sync_rms_error_ns | 14 | 100 | 1e+10 | 1.0e+12 | 1.40e+13 | 19.450 |
+| fig16b | secret_key_rate | 16 | 100 | 1e+10 | 1.0e+12 | 1.60e+13 | 0.297 |
