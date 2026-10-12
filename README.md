@@ -12,11 +12,12 @@ amplification.
 - `main.py` — interactive, Qiskit-based walk-through of one BB84 run (didactic).
 - `bb84/` — protocol modules:
   - `qcs_tracking.py` — photon-limited acquisition (drift search) and Kalman tracking.
-  - `security.py` — finite-key length, Shor–Preskill rate, PLOB bound, Wilson intervals.
+  - `security.py` — decoy-state (Lim et al. 2014) and single-photon finite-key bounds, PLOB bound, Wilson intervals.
+  - `tracking_theory.py` — analytical tracking-error and lock-loss model of the Kalman tracker.
   - `timing_attacks.py` — detector-mismatch time-shift model and QCS timing monitor.
   - `qcs_synchronization.py` — simplified sync demo used by `main.py`.
 - `research_simulation.py` — Monte Carlo research model (timing, physical and protocol layers).
-- `generate_graphs.py` — generates the 14 paper figures, CSVs, the operating-point table and the sample-size table (`table_statistics.md`).
+- `generate_graphs.py` — generates the 16 paper figures, CSVs, the operating-point table and the sample-size table (`table_statistics.md`).
 - `tests/` — checks of the model against closed-form results.
 - `research_outputs/` — generated figures (PDF and PNG), CSVs and `FIGURES.md` captions.
 - `research_outputs/panels/` — each panel of the multi-panel figures as its own larger image

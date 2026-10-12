@@ -100,3 +100,32 @@ def test_time_shift_leaks_nothing_at_gate_centre():
     info, rate = eve_information(np.array([0.0, 1.0]), 0.4, 2.0, 0.35)
     assert info[0] == pytest.approx(0.0, abs=1e-12)
     assert info[1] > 0.1 and rate[1] < 1
+
+
+def test_decoy_finite_key_is_below_asymptotic_and_positive():
+    cfg = rs.ResearchConfig(sync_strategy="ideal", distance_km=25)
+    counts = rs.expected_decoy_counts(cfg, 0.996, 1e10)
+    from bb84.security import decoy_key_components
+    finite = decoy_key_components(*counts, cfg.intensities, cfg.intensity_probs)
+    asym = decoy_key_components(*counts, cfg.intensities, cfg.intensity_probs, finite=False)
+    assert 0 < finite["length_raw"] < asym["length_raw"]
+    # the single-photon bound can never exceed the detections
+    assert finite["s_z1"] <= finite["n_z"]
+
+
+def test_decoy_monte_carlo_matches_expected_qber():
+    cfg = rs.ResearchConfig(sync_strategy="ideal", num_slots=10 ** 6, eve_rate=0.1)
+    results = rs.run_trials(cfg, 10, rs.make_rng("decoy_qber"))
+    measured = np.mean([r.qber for r in results])
+    assert measured == pytest.approx(rs.expected_qber(cfg), abs=1e-3)
+
+
+def test_tracking_theory_matches_simulated_error():
+    from bb84 import tracking_theory as tt
+    cfg = rs.ResearchConfig(distance_km=50, num_slots=10 ** 7)
+    p = rs.sync_detection_probability(cfg)
+    delta = tt.pilot_gap_ns(cfg.pilot_spacing_slots, cfg.clock_period_ns, p)
+    theory = tt.rms_gate_error(tt.wander_to_q(cfg.freq_wander_ppm_per_sqrt_ms), cfg.timing_jitter_ns ** 2, delta)
+    results = rs.run_trials(cfg, 6, rs.make_rng("theory"))
+    simulated = np.median([r.sync_rms_error_ns for r in results])
+    assert simulated == pytest.approx(theory, rel=0.25)

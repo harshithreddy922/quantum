@@ -107,31 +107,75 @@ re-implementation, not the authors' code.
 | Gate width W | 2 ns | |
 | Clock offset / drift | 4 ns / 20 ppm | crystal-oscillator class |
 | Oscillator wander | 0.01 ppm/√ms | 0.1–0.2 ppm/√ms in stress tests |
-| Block size N | 10⁵–10⁸ slots | stated per figure |
+| Source | decoy-state weak coherent pulses | intensities μ = 0.5 / 0.2 / 0.0002, chosen with probability 0.6 / 0.2 / 0.2; Z basis with probability 0.8 (tuned for 10¹⁰-slot key blocks). An ideal single-photon source is available as `source="single_photon"` |
+| Sync segment | 10⁶–10⁸ slots | simulated pulse by pulse (offset, drift, wander, sync photons) |
+| Key block N | 10¹⁰ slots (100 s at 100 MHz) | privacy-amplification block; Figs. 4 and 11 vary it |
 
 Signal errors combine channel noise and Eve independently (XOR):
 e = e_ch(1 − e_E) + e_E(1 − e_ch), with e_E = f/4 for intercept-resend on a
 fraction f of pulses. Dark-count clicks and double clicks are assigned a
-random bit (error ½). Sync photons are simulated individually. Key-slot clicks
-are drawn from a binomial with the block's mean capture probability, which is
-exact in expectation and makes 10⁸-slot blocks tractable.
+random bit (error ½). Each intensity μ gives a click probability
+1 − exp(−η·C·μ) + dark counts, where η is fibre × detector transmittance and C
+the timing capture. Sync pulses are sent at the signal intensity and are
+simulated individually. Key-slot detections are drawn per (intensity, basis)
+category with multinomial and binomial draws using the segment's mean capture
+probability, which is exact in expectation.
+
+**Sync segment and key block.** Synchronization is simulated pulse by pulse
+over one segment (10⁸ slots = 1 s by default). Detection statistics are then
+accumulated over a key block of 10¹⁰ slots, assuming every segment in the
+block is synchronized with the same (stationary) statistics; the finite-key
+bound is applied to the key block. Decoy-state finite-key bounds need such
+long blocks: at 10⁸ slots the key vanishes before 100 km.
 
 ### 2.3 Protocol and security
 
-1. Sifting keeps matching bases (probability ½).
-2. A random 10 % of sifted bits is disclosed to estimate the QBER Q_test.
-3. The protocol aborts if Q_test > 11 %.
-4. The secure length follows Tomamichel et al. (2012):
+**Decoy-state BB84 (default)** follows Lim et al. (2014):
+
+1. Key bits come from Z-basis detections of all intensities; X-basis
+   detections estimate the phase error.
+2. Vacuum and single-photon detections s_Z,0 and s_Z,1 are lower-bounded from
+   the per-intensity counts with Hoeffding fluctuation terms; the
+   single-photon phase error φ_Z is upper-bounded from the X-basis errors.
+3. The secure length is
+
+       ℓ = s_Z,0 + s_Z,1 [1 − h(φ_Z)] − λ_EC − 6 log₂(21/ε_sec) − log₂(2/ε_cor)
+
+   with λ_EC = f·n_Z·h(E_Z), f = 1.16, ε_sec = 10⁻¹⁰, ε_cor = 10⁻¹⁵
+   (`bb84/security.decoy_key_components`).
+
+**Ideal single-photon source (`source="single_photon"`)**: 10 % of sifted
+bits estimate the QBER, the protocol aborts above 11 %, and the length
+follows Tomamichel et al. (2012):
 
        ℓ = n[1 − h(Q_test + μ)] − f·n·h(Q_test) − log₂(2/(ε_sec² ε_cor))
 
-   with f = 1.16, ε_sec = 10⁻¹⁰, ε_cor = 10⁻¹⁵ and μ the statistical
-   fluctuation term (`bb84/security.py`).
-5. Eve's true interception rate is never used in the key-length calculation.
+In both cases Eve's true interception rate is never used in the key length.
 
 The secret key rate is ℓ divided by **all** slots in the block, including sync
-overhead. Asymptotic Shor–Preskill rates and the PLOB bound are plotted for
-reference.
+overhead. Asymptotic rates (the same bounds without fluctuation terms) and the
+PLOB bound are plotted for reference.
+
+### 2.5 Analytical model of the tracker (`bb84/tracking_theory.py`)
+
+Pilot detections form a Poisson process with mean spacing
+Δ = pilot spacing × T_slot / p_detect. The frequency error performs a random
+walk with diffusion q (from the oscillator wander) and each detection
+measures the timing error with variance r = σ_jitter².
+
+1. **Steady state.** Iterating the Kalman predict/update equations at fixed Δ
+   gives the posterior covariance (P11, P12, P22).
+2. **Timing error.** Between updates V(t) = P11 + 2tP12 + t²P22 + qt³/3;
+   averaging over exponential gaps gives the mean-square gate error
+   P11 + 2P12Δ + 2P22Δ² + 2qΔ³. This matches the simulation within a few
+   percent wherever the tracker is locked (Fig. 15a).
+3. **Lock loss.** Two hazards: a gap long enough for the error to leave the
+   ±T_slot/2 pilot window, and a dark count accepted by the 3σ innovation
+   gate while V > r. Their rates give P_lost = 1 − exp(−λT) per segment,
+   which predicts the lock boundary to within one distance step (Fig. 15b).
+4. **Design rule.** Solving P_lost ≤ 1 % per second for the pilot spacing gives
+   the minimum pilot overhead versus distance and oscillator quality
+   (Fig. 15c).
 
 ### 2.4 Statistics and reproducibility
 
@@ -146,9 +190,10 @@ reference.
   Fig. 10: median and 10–90 % band over 100 one-second blocks). The exact
   numbers and the median relative 95 % confidence half-width per figure are
   written to `research_outputs/table_statistics.md` by every run.
-- `tests/test_research_model.py` checks the Monte Carlo against closed forms
-  (QBER, capture), checks acquisition under dark counts, and checks
-  reproducibility.
+- `tests/test_research_model.py` (15 tests) checks the Monte Carlo against
+  closed forms (QBER, capture, decoy QBER), the decoy bound (finite below
+  asymptotic), the tracker theory against simulation, acquisition under dark
+  counts, and reproducibility.
 
 ## 3. Figures
 
@@ -168,6 +213,8 @@ reference.
 | 12 | `fig12_key_budget` | Where the sifted bits go (test, EC, PA, finite-size) |
 | 13 | `fig13_timing_attacks` | Delay and time-shift attacks on the sync layer |
 | 14 | `fig14_kalman_vs_batch` | This work's Kalman tracking versus the batch re-sync baseline (novelty) |
+| 15 | `fig15_tracking_theory` | Analytical tracking error and lock-loss model versus simulation; minimum pilot overhead |
+| 16 | `fig16_fairness` | Batch size tuned for the baseline; classical-reference quality sweep |
 | — | `table_operating_points` | Numbers for the comparison table in the paper |
 | — | `table_statistics` | Sample size and precision behind every figure |
 
@@ -179,20 +226,20 @@ manuscript.
 ## 4. Limitations to state in the paper
 
 - This is a simulation study, not an optical experiment.
-- The source is an ideal single-photon source. A weak-coherent-pulse
-  implementation needs decoy states (Hwang 2003; Lo, Ma, Chen 2005) and
-  decoy-state finite-key bounds (Lim et al. 2014). This is future work.
-- Afterpulsing, detector dead time and polarization drift are not modelled.
+- Decoy-state statistics are accumulated over 10¹⁰-slot key blocks assuming
+  stationary synchronization across the 1 s segments of a block.
+- Polarization drift, afterpulsing and detector dead time are not modelled.
 - The Kalman tracker has no lock-loss detection or re-acquisition. Under heavy
   oscillator wander at long range it can lose lock (Fig. 10b).
 - The classical-reference baseline is reduced to a constant residual error per
-  block. Its σ (0.5 ns) is a parameter. Sub-100 ps systems such as White Rabbit
-  would close much of the gap shown here.
+  block. Fig. 16b sweeps it: a classical reference better than about 100–200 ps
+  matches or exceeds QCS (which pays about 1 % pilot overhead); QCS's advantage
+  is at larger classical errors and in the timing-attack resistance (Fig. 13).
 - The time-shift analysis assumes a rectangular-gate efficiency mismatch
   blurred by Gaussian jitter. Real detectors have smoother mismatch curves.
 - The intercept-resend attack is used for QBER behaviour only. Security of the
-  key length comes from the finite-key bound, which covers general attacks on
-  the BB84 single-photon source assumed here.
+  key length comes from the decoy-state finite-key bound, which covers general
+  attacks, including photon-number splitting.
 
 ## 5. Reproduce
 
