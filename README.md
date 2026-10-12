@@ -16,7 +16,7 @@ amplification.
   - `timing_attacks.py` — detector-mismatch time-shift model and QCS timing monitor.
   - `qcs_synchronization.py` — simplified sync demo used by `main.py`.
 - `research_simulation.py` — Monte Carlo research model (timing, physical and protocol layers).
-- `generate_graphs.py` — generates the 13 paper figures, CSVs and the operating-point table.
+- `generate_graphs.py` — generates the 14 paper figures, CSVs, the operating-point table and the sample-size table (`table_statistics.md`).
 - `tests/` — checks of the model against closed-form results.
 - `research_outputs/` — generated figures (PDF and PNG), CSVs and `FIGURES.md` captions.
 - `research_outputs/panels/` — each panel of the multi-panel figures as its own larger image

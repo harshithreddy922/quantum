@@ -10,18 +10,28 @@ Figure-by-figure captions and headline numbers are in
 The study evaluates **qubit-based clock synchronization (QCS) for BB84**:
 Bob recovers Alice's clock from the detection times of single-photon sync
 pulses that travel over the quantum channel itself, instead of relying on a
-separate classical timing link. The contributions are:
+separate classical timing link.
+
+In-band (qubit-based) synchronization is **already published** (Calderaro et
+al. 2020; Cochran and Gauthier 2021; Chen et al. 2023; Krause et al. 2025;
+Millet et al. 2026; Tiefenthaler et al. 2026) and must be cited, not claimed.
+The contributions of this work, stated "to our knowledge", are:
 
 1. A photon-limited synchronization model. Sync photons suffer the same fibre
    loss, detector inefficiency and dark counts as key photons, and the slots
    they occupy are charged to the key rate.
 2. A two-stage estimator: drift-search (2-D cross-correlation) acquisition on a
-   sparse preamble, followed by Kalman tracking on interleaved pilot pulses.
-   Its accuracy is validated against the Cramér–Rao bound (Fig. 2c).
+   sparse preamble, followed by **recursive Kalman tracking** of offset and
+   drift on interleaved secret pilot pulses, with innovation gating against
+   dark counts. Acquisition accuracy is validated against the Cramér–Rao
+   bound (Fig. 2c). Against a batch cross-correlation re-synchronization
+   baseline representative of published methods, run on the same pilots, the
+   tracker gives about 10x lower timing error and keeps lock where the batch
+   method fails (Fig. 14).
 3. A comparison against realistic baselines (no synchronization, a classical
-   timing reference with sub-ns residual error, preamble-only QCS, and perfect
-   synchronization) under clock offset, drift, frequency wander, jitter, gate
-   width, distance and block size.
+   timing reference with sub-ns residual error, preamble-only QCS, batch
+   re-synchronization, and perfect synchronization) under clock offset,
+   drift, frequency wander, jitter, gate width, distance and block size.
 4. Composable finite-key rates (Tomamichel et al. 2012) computed only from
    quantities Alice and Bob observe.
 5. A security analysis of the timing layer: a delay attack on a classical
@@ -59,6 +69,7 @@ Synchronization strategies (`research_simulation.SYNC_STRATEGIES`):
 | No synchronization | 0 (nominal schedule) | none |
 | Classical reference | true error + constant residual ~ N(0, 0.5 ns) per block | none (separate link) |
 | QCS, preamble only | acquisition fit, extrapolated for the whole block | preamble slots |
+| QCS, batch re-sync (baseline) | acquisition, then a fresh cross-correlation fit per batch of 32 pilot clicks, held until the next batch | preamble + 1 % pilot slots |
 | QCS, preamble + tracking | acquisition, then Kalman updates from pilots | preamble + 1 % pilot slots |
 | Perfect synchronization | true error | none |
 
@@ -76,6 +87,13 @@ spaces them evenly, which has the same timing statistics.) Each pilot click
 updates a two-state Kalman filter (timing error, frequency error). The process
 noise is matched to the oscillator wander, and a 3σ innovation gate rejects
 dark counts (`run_timing_tracker`). Gates use only past updates (causal).
+
+**Batch baseline.** `run_batch_resync` uses exactly the same pilot clicks. It
+collects 32 clicks, fits the residual offset and drift with the same robust
+cross-correlation used for acquisition (search range ±100 ppm), and holds
+that line until the next batch completes. This represents the batch /
+cross-correlation family of published qubit-based methods; it is a
+re-implementation, not the authors' code.
 
 ### 2.2 Physical layer
 
@@ -122,8 +140,12 @@ reference.
   the number of worker processes.
 - Error bars are 95 % confidence intervals of the mean (1.96·s/√n).
   Acceptance probabilities use Wilson intervals.
-- Trial counts: 50 for timing sweeps, 200 for acceptance, and 10–20 for
-  10⁸-slot blocks (heatmaps: 4 per cell).
+- Sample size: every plotted point averages 100 to 1,000 independent blocks
+  (Monte Carlo repetitions) of 10⁶ to 10⁸ photon slots, i.e. 10⁸ to 10¹¹
+  simulated photon slots per point (heatmap cells: 50 blocks of 10⁸ slots;
+  Fig. 10: median and 10–90 % band over 100 one-second blocks). The exact
+  numbers and the median relative 95 % confidence half-width per figure are
+  written to `research_outputs/table_statistics.md` by every run.
 - `tests/test_research_model.py` checks the Monte Carlo against closed forms
   (QBER, capture), checks acquisition under dark counts, and checks
   reproducibility.
@@ -145,7 +167,9 @@ reference.
 | 11 | `fig11_finite_key` | Convergence to the asymptotic rate with block size |
 | 12 | `fig12_key_budget` | Where the sifted bits go (test, EC, PA, finite-size) |
 | 13 | `fig13_timing_attacks` | Delay and time-shift attacks on the sync layer |
+| 14 | `fig14_kalman_vs_batch` | This work's Kalman tracking versus the batch re-sync baseline (novelty) |
 | — | `table_operating_points` | Numbers for the comparison table in the paper |
+| — | `table_statistics` | Sample size and precision behind every figure |
 
 Every figure is saved as PDF (vector, for LaTeX) and 300 dpi PNG, next to a
 CSV of the plotted values. Each panel of a multi-panel figure is also saved on its own
@@ -181,6 +205,18 @@ python generate_graphs.py --only fig08    # one figure
 ```
 
 ## 6. References (verify page numbers before submission)
+
+Related qubit-based synchronization work (cite in the related-work section):
+
+- L. Calderaro et al., Phys. Rev. Applied 13, 054041 (2020) — Qubit4Sync.
+- R. D. Cochran, D. J. Gauthier, Entropy 23, 988 (2021) — Bayesian qubit-based synchronization.
+- Y. Chen et al., arXiv:2308.13154 — qubit-based distributed frame synchronization; R. Guan et al., arXiv:2510.17659 — field trial.
+- J. Krause et al., Phys. Rev. Applied 23, 044015 (2025) — iQSync offset recovery.
+- C. Spiess, F. Steinlechner, Quantum Sci. Technol. (2023) — clock synchronization with pulsed single photons.
+- L. Millet et al., arXiv:2605.26705 (2026) — clock-drift model and synchronization algorithm.
+- L. Tiefenthaler et al., Optics Express (2026), arXiv:2605.20857 — decoy-state-based time synchronization.
+
+Foundations:
 
 - C. H. Bennett, G. Brassard, Proc. IEEE ICCSSP, 175 (1984).
 - P. W. Shor, J. Preskill, Phys. Rev. Lett. 85, 441 (2000).

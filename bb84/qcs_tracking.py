@@ -56,7 +56,10 @@ def acquire_preamble(times, measurements, jitter_sigma, wrap_period, max_drift):
     if len(times) < 2:
         return None
 
-    span = max(times[-1] - times[0], 1.0)
+    # Work in time relative to the first tag, so the unwrapped line is
+    # anchored inside this batch (not at t = 0 of the whole block).
+    rel = times - times[0]
+    span = max(rel[-1], 1.0)
     step = max(jitter_sigma / span, 1e-9)
     candidates = np.arange(-max_drift, max_drift + step, step)
     bin_width = 2 * jitter_sigma
@@ -64,7 +67,7 @@ def acquire_preamble(times, measurements, jitter_sigma, wrap_period, max_drift):
 
     best_count, best_nu, best_peak = -1, 0.0, 0.0
     for chunk in np.array_split(candidates, max(1, len(candidates) // 512)):
-        r = _wrap(z[None, :] - chunk[:, None] * times[None, :], wrap_period)
+        r = _wrap(z[None, :] - chunk[:, None] * rel[None, :], wrap_period)
         bins = ((r + wrap_period / 2) / wrap_period * n_bins).astype(int) % n_bins
         # Count tags per (candidate, bin) and per neighbouring bin pair so a
         # peak split across a bin edge is still found.
@@ -82,24 +85,25 @@ def acquire_preamble(times, measurements, jitter_sigma, wrap_period, max_drift):
     if best_count < 2:
         return None
 
-    r = _wrap(z - best_nu * times - best_peak, wrap_period)
+    r = _wrap(z - best_nu * rel - best_peak, wrap_period)
     inliers = np.abs(r) < max(3 * jitter_sigma, bin_width)
     if inliers.sum() < 2:
         return None
-    x = times[inliers]
+    x = rel[inliers]
     y = best_nu * x + best_peak + r[inliers]
 
     t_ref = times[-1]
+    t_ref_rel = rel[-1]
     x_mean = x.mean()
     x_c = x - x_mean
     sxx = float((x_c ** 2).sum())
     if sxx == 0:
         return None
     nu = float((x_c * (y - y.mean())).sum() / sxx)
-    tau = float(y.mean() + nu * (t_ref - x_mean))
+    tau = float(y.mean() + nu * (t_ref_rel - x_mean))
 
     var = jitter_sigma ** 2
-    lever = t_ref - x_mean
+    lever = t_ref_rel - x_mean
     p22 = var / sxx
     p11 = var * (1 / len(x) + lever ** 2 / sxx)
     p12 = var * lever / sxx
@@ -178,6 +182,69 @@ def run_timing_tracker(
         out_t.append(t)
         out_tau.append(tau)
         out_nu.append(nu)
+
+    return np.array(out_t), np.array(out_tau), np.array(out_nu)
+
+
+def run_batch_resync(
+    event_times,
+    true_error,
+    signal_present,
+    jitter,
+    dark_present,
+    dark_uniform,
+    acquisition_half_width,
+    jitter_sigma,
+    initial_state,
+    batch_detections=32,
+    max_residual_drift=100e-6,
+):
+    """
+    Baseline representative of published qubit-based synchronization
+    (cross-correlation / batch estimation, e.g. Calderaro et al. 2020;
+    Cochran and Gauthier 2021): pilot clicks are collected in batches of
+    `batch_detections`, the residual offset and drift of each batch are
+    found with the same robust cross-correlation fit used for acquisition,
+    and that estimate is held (extrapolated linearly) until the next batch
+    completes. No recursive filtering between batches.
+
+    Same inputs as run_timing_tracker; returns (update_times, tau, nu).
+    """
+    t_ref, tau_ref, nu_ref = initial_state[0], initial_state[1], initial_state[2]
+    out_t, out_tau, out_nu = [t_ref], [tau_ref], [nu_ref]
+    batch_t, batch_r = [], []
+
+    for k in range(len(event_times)):
+        t = event_times[k]
+        pred = tau_ref + nu_ref * (t - t_ref)
+        half = acquisition_half_width[k]
+        z = None
+        if signal_present[k]:
+            z_signal = true_error[k] + jitter[k]
+            if abs(z_signal - pred) <= half:
+                z = z_signal
+        if dark_present[k]:
+            z_dark = pred + (2 * dark_uniform[k] - 1) * half
+            if z is None or z_dark < z:
+                z = z_dark
+        if z is None:
+            continue
+        batch_t.append(t)
+        batch_r.append(z - pred)
+        if len(batch_t) < batch_detections:
+            continue
+
+        fit = acquire_preamble(np.array(batch_t), np.array(batch_r), jitter_sigma,
+                               wrap_period=2 * half, max_drift=max_residual_drift)
+        if fit is not None:
+            t_new, tau_res, nu_res = fit[0], fit[1], fit[2]
+            tau_ref = tau_ref + nu_ref * (t_new - t_ref) + tau_res
+            nu_ref = nu_ref + nu_res
+            t_ref = t_new
+            out_t.append(t_ref)
+            out_tau.append(tau_ref)
+            out_nu.append(nu_ref)
+        batch_t, batch_r = [], []
 
     return np.array(out_t), np.array(out_tau), np.array(out_nu)
 

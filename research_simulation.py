@@ -34,7 +34,12 @@ from pathlib import Path
 import numpy as np
 from scipy.special import ndtr
 
-from bb84.qcs_tracking import acquire_preamble, predict_timing_error, run_timing_tracker
+from bb84.qcs_tracking import (
+    acquire_preamble,
+    predict_timing_error,
+    run_batch_resync,
+    run_timing_tracker,
+)
 from bb84.security import (
     QBER_TOLERANCE,
     asymptotic_secret_fraction,
@@ -47,11 +52,12 @@ OUTPUT_DIR = Path("research_outputs")
 MASTER_SEED = 20261007
 CAPTURE_SAMPLE_POINTS = 50_000
 
-SYNC_STRATEGIES = ("none", "classical", "qcs_preamble", "qcs_tracking", "ideal")
+SYNC_STRATEGIES = ("none", "classical", "qcs_preamble", "qcs_batch", "qcs_tracking", "ideal")
 STRATEGY_LABELS = {
     "none": "No synchronization",
     "classical": "Classical reference",
     "qcs_preamble": "QCS (preamble only)",
+    "qcs_batch": "QCS, batch re-sync (prior-art style)",
     "qcs_tracking": "QCS (preamble + pilot tracking)",
     "ideal": "Perfect synchronization",
 }
@@ -166,7 +172,7 @@ def _sync_slot_layout(config):
     """Times of preamble and pilot sync slots and the overhead they cost."""
     period = config.clock_period_ns
     strategy = config.sync_strategy
-    if strategy not in ("qcs_preamble", "qcs_tracking"):
+    if strategy not in ("qcs_preamble", "qcs_batch", "qcs_tracking"):
         return np.empty(0), np.empty(0), 0, 0.0
 
     # Bob keeps the preamble running until he expects the target number of
@@ -178,7 +184,7 @@ def _sync_slot_layout(config):
     pre_times = np.arange(n_pre) * config.preamble_spacing_slots * period
 
     pilot_times = np.empty(0)
-    if strategy == "qcs_tracking" and config.pilot_spacing_slots > 0:
+    if strategy in ("qcs_batch", "qcs_tracking") and config.pilot_spacing_slots > 0:
         pilot_slots = np.arange(preamble_slots, config.num_slots, config.pilot_spacing_slots)
         pilot_times = pilot_slots * period
 
@@ -242,7 +248,11 @@ def synchronize(config, rng, wander):
     pilot_dark = rng.random(len(pilot_times)) < p_dark_pilot
     events = pilot_survive | pilot_dark
     times = pilot_times[events]
-    update_t, tau, nu = run_timing_tracker(
+    # Stage 2 runs either the Kalman tracker (this work) or the batch
+    # cross-correlation baseline on exactly the same pilot clicks.
+    stage2 = run_batch_resync if strategy == "qcs_batch" else run_timing_tracker
+    stage2_kwargs = {} if strategy == "qcs_batch" else {"process_noise_nu": tracker_q}
+    update_t, tau, nu = stage2(
         event_times=times,
         true_error=true_timing_error(config, times, wander),
         signal_present=pilot_survive[events],
@@ -252,7 +262,7 @@ def synchronize(config, rng, wander):
         acquisition_half_width=np.full(len(times), acq_pilot),
         jitter_sigma=jitter,
         initial_state=state,
-        process_noise_nu=tracker_q,
+        **stage2_kwargs,
     )
     sync_detections = int(survive.sum() + pilot_survive.sum())
     freeze = key_start if strategy == "qcs_preamble" else None
@@ -371,6 +381,7 @@ def summarize(results):
         mean = float(values.mean())
         std = float(values.std(ddof=1)) if n > 1 else 0.0
         summary[f"{key}_mean"] = mean
+        summary[f"{key}_median"] = float(np.median(values))
         summary[f"{key}_std"] = std
         summary[f"{key}_ci95"] = 1.96 * std / math.sqrt(n) if n > 1 else 0.0
     _, lo, hi = wilson_interval(int(sum(r.accepted for r in results)), n)
@@ -402,6 +413,18 @@ def run_points(tasks):
     if _EXECUTOR is None:
         return [_run_point(task) for task in tasks]
     return list(_EXECUTOR.map(_run_point, tasks))
+
+
+def _trace_point(task):
+    config, keys, bins = task
+    return timing_trace(config, make_rng(*keys), bins)
+
+
+def run_traces(tasks):
+    """Run timing_trace for many (config, rng keys, bins) tasks, in parallel when enabled."""
+    if _EXECUTOR is None:
+        return [_trace_point(task) for task in tasks]
+    return list(_EXECUTOR.map(_trace_point, tasks))
 
 
 def sweep_tasks(experiment, parameter, values, base_config, trials, label=None):
