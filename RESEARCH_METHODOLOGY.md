@@ -23,7 +23,15 @@ The contributions of this work, stated "to our knowledge", are:
 2. A two-stage estimator: drift-search (2-D cross-correlation) acquisition on a
    sparse preamble, followed by **recursive Kalman tracking** of offset and
    drift on interleaved secret pilot pulses, with innovation gating against
-   dark counts. Acquisition accuracy is validated against the Cramér–Rao
+   dark counts. Kalman filters are already used in **continuous-variable** QKD
+   to track the reference phase or polarization from bright pilot / coherent
+   measurements (Wang et al. 2019; Huang et al. 2020; Chin et al. 2021;
+   Kasthuri et al. 2024; review: Ma et al. 2022). The claim here is narrower:
+   Kalman tracking of the **clock (timing offset and drift)** in
+   **discrete-variable, photon-counting** QKD, where measurements are sparse
+   Poisson click times, dark counts are outliers that must be gated, and lock
+   can be lost; we found no prior work on this, and it is stated "to our
+   knowledge". Acquisition accuracy is validated against the Cramér–Rao
    bound (Fig. 2c). Against a batch cross-correlation re-synchronization
    baseline representative of published methods, run on the same pilots, the
    tracker gives about 10x lower timing error and keeps lock where the batch
@@ -262,6 +270,15 @@ Related qubit-based synchronization work (cite in the related-work section):
 - C. Spiess, F. Steinlechner, Quantum Sci. Technol. (2023) — clock synchronization with pulsed single photons.
 - L. Millet et al., arXiv:2605.26705 (2026) — clock-drift model and synchronization algorithm.
 - L. Tiefenthaler et al., Optics Express (2026), arXiv:2605.20857 — decoy-state-based time synchronization.
+
+Kalman filtering in QKD (all continuous-variable phase/polarization tracking,
+not clock synchronization; cite to delimit the claim):
+
+- Y. Wang, P. Huang, et al., Opt. Express 27(19), 26689 (2019) — Kalman polarization tracking in CV-QKD.
+- P. Huang, D. Huang, Z. Peng, Opt. Express 28(19), 28727 (2020) — Kalman reference-phase tracking in CV-QKD.
+- H.-M. Chin et al., npj Quantum Inf. 7, 20 (2021) — unscented Kalman phase compensation in CV-QKD.
+- J. Ma, et al., Symmetry 14(12), 2478 (2022) — review of Kalman filtering in quantum systems.
+- Kasthuri et al., Optica Applicata 54(4), 483 (2024) — EKF + RNN phase estimation in CV-QKD.
 
 Foundations:
 
