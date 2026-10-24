@@ -11,7 +11,7 @@ amplification.
 
 - `main.py` — interactive, Qiskit-based walk-through of one BB84 run (didactic).
 - `bb84/` — protocol modules:
-  - `qcs_tracking.py` — photon-limited acquisition (drift search) and Kalman tracking.
+  - `qcs_tracking.py` — photon-limited acquisition (drift search), Kalman tracking on pilots or on key clicks (data-aided), and the batch and Millet-style histogram baselines.
   - `security.py` — decoy-state (Lim et al. 2014) and single-photon finite-key bounds, PLOB bound, Wilson intervals.
   - `tracking_theory.py` — analytical tracking-error and lock-loss model of the Kalman tracker.
   - `timing_attacks.py` — detector-mismatch time-shift model and QCS timing monitor.

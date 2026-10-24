@@ -129,3 +129,28 @@ def test_tracking_theory_matches_simulated_error():
     results = rs.run_trials(cfg, 6, rs.make_rng("theory"))
     simulated = np.median([r.sync_rms_error_ns for r in results])
     assert simulated == pytest.approx(theory, rel=0.25)
+
+
+@pytest.mark.parametrize("strategy", ["qcs_data", "qcs_histogram"])
+def test_key_click_sync_needs_no_pilots_and_locks(strategy):
+    cfg = rs.ResearchConfig(distance_km=50, num_slots=10 ** 7, sync_strategy=strategy)
+    result = rs.simulate_trial(cfg, rs.make_rng("data_aided", strategy))
+    pilot = rs.simulate_trial(replace(cfg, sync_strategy="qcs_tracking"), rs.make_rng("data_aided", strategy))
+    assert result.sync_overhead < pilot.sync_overhead   # preamble only, no pilot slots
+    assert result.timing_capture_rate > 0.98
+    assert not result.lock_lost
+
+
+def test_histogram_resync_recovers_known_drift():
+    from bb84.qcs_tracking import run_histogram_resync
+    rng = np.random.default_rng(3)
+    period, drift, offset = 10.0, 3e-6, 0.4
+    t = np.sort(rng.uniform(0, 5e7, 200_000))
+    err = offset + drift * t
+    n = len(t)
+    t_out, tau, nu = run_histogram_resync(
+        event_times=t, true_error=err, signal_present=np.ones(n, bool), jitter=rng.normal(0, 0.35, n),
+        dark_present=np.zeros(n, bool), dark_uniform=rng.random(n), acquisition_half_width=np.full(n, period / 2),
+        jitter_sigma=0.35, initial_state=(0.0, 0.0, 0.0), window_ns=1e6, period_ns=period)
+    assert nu[-1] == pytest.approx(drift, abs=1e-7)
+    assert tau[-1] == pytest.approx(offset + drift * t_out[-1], abs=0.05)

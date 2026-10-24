@@ -42,12 +42,17 @@ The contributions of this work, stated "to our knowledge", are:
    shift to QBER and gives clock-stability requirements; ours predicts the
    tracker's RMS gate error, lock-loss probability and minimum pilot
    overhead. Millet et al. use the key detections themselves (no pilots) and
-   validate in the field (100 km lab, 24 h metro network); our 1 % pilot
-   overhead and simulation-only validation must be stated as limitations. Acquisition accuracy is validated against the Cramér–Rao
-   bound (Fig. 2c). Against a batch cross-correlation re-synchronization
-   baseline representative of published methods, run on the same pilots, the
-   tracker gives about 10x lower timing error and keeps lock where the batch
-   method fails (Fig. 14).
+   validate in the field (100 km lab, 24 h metro network); our results are
+   simulation only, which must be stated as a limitation.
+   Acquisition accuracy is validated against the Cramér–Rao bound (Fig. 2c).
+   The tracker runs either on 1 % interleaved pilots or **data-aided**, on
+   the time tags of ordinary key clicks with no pilot overhead (the arrival
+   time of a click carries no bit or basis information). Fig. 14 compares it
+   with two baselines on the same clicks: batch cross-correlation re-sync on
+   pilots, and a reimplementation of the Millet et al. two-histogram
+   circular-mean method on key clicks (including its short-to-long histogram
+   convergence schedule), tuned to its best histogram duration at every
+   point (Fig. 16c).
 3. A comparison against realistic baselines (no synchronization, a classical
    timing reference with sub-ns residual error, preamble-only QCS, batch
    re-synchronization, and perfect synchronization) under clock offset,
@@ -91,6 +96,8 @@ Synchronization strategies (`research_simulation.SYNC_STRATEGIES`):
 | QCS, preamble only | acquisition fit, extrapolated for the whole block | preamble slots |
 | QCS, batch re-sync (baseline) | acquisition, then a fresh cross-correlation fit per batch of 32 pilot clicks, held until the next batch | preamble + 1 % pilot slots |
 | QCS, preamble + tracking | acquisition, then Kalman updates from pilots | preamble + 1 % pilot slots |
+| QCS, histogram re-sync (baseline) | acquisition, then Millet et al. 2026: circular means of two consecutive histograms of key-click tags folded over T, one correction per pair; histograms start at ~10 clicks and grow 4x every 3 corrections up to T_int | preamble only |
+| QCS, data-aided tracking | acquisition, then Kalman updates from key-click tags (thinned to ≤ 10⁶ per segment, applied in groups of ≤ 25 clicks) | preamble only |
 | Perfect synchronization | true error | none |
 
 **Acquisition.** The preamble sends one pulse every 5 slots (50 ns) until
@@ -232,9 +239,9 @@ measures the timing error with variance r = σ_jitter².
 | 11 | `fig11_finite_key` | Convergence to the asymptotic rate with block size |
 | 12 | `fig12_key_budget` | Where the sifted bits go (test, EC, PA, finite-size) |
 | 13 | `fig13_timing_attacks` | Delay and time-shift attacks on the sync layer |
-| 14 | `fig14_kalman_vs_batch` | This work's Kalman tracking versus the batch re-sync baseline (novelty) |
+| 14 | `fig14_kalman_vs_batch` | Kalman tracking (pilots and data-aided) versus batch and Millet-style histogram re-sync, two oscillators (novelty) |
 | 15 | `fig15_tracking_theory` | Analytical tracking error and lock-loss model versus simulation; minimum pilot overhead |
-| 16 | `fig16_fairness` | Batch size tuned for the baseline; classical-reference quality sweep |
+| 16 | `fig16_fairness` | Batch size and histogram duration tuned for the baselines; classical-reference quality sweep |
 | — | `table_operating_points` | Numbers for the comparison table in the paper |
 | — | `table_statistics` | Sample size and precision behind every figure |
 

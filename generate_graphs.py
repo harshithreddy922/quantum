@@ -55,6 +55,8 @@ STRATEGY_STYLE = {
     "qcs_preamble": dict(color=SERIES[2], marker="^", linestyle="-"),
     "qcs_batch": dict(color=SERIES[3], marker="D", linestyle="-"),
     "qcs_tracking": dict(color=SERIES[0], marker="o", linestyle="-"),
+    "qcs_histogram": dict(color="#8e5cd9", marker="v", linestyle="-"),
+    "qcs_data": dict(color="#0d366b", marker="*", linestyle="-"),
     "ideal": dict(color=INK, marker=None, linestyle="--"),
 }
 SERIES_MARKERS = ["o", "s", "^", "D"]
@@ -755,50 +757,84 @@ FIG14_DISTANCES = [10, 25, 50, 75, 100, 125, 150]
 FIG14_OSCILLATORS = ((0.01, "stable oscillator"), (0.2, "poor oscillator"))
 
 
+FIG14_STRATEGIES = ("qcs_batch", "qcs_histogram", "qcs_tracking", "qcs_data")
+FIG14_LABELS = {
+    "qcs_batch": "Batch re-sync on pilots (prior-art style)",
+    "qcs_histogram": "Histogram re-sync on key clicks (Millet et al. 2026 style, best window)",
+    "qcs_tracking": "Kalman tracking on 1 % pilots (this work)",
+    "qcs_data": "Kalman tracking on key clicks, no pilots (this work)",
+}
+# The histogram baseline is run with several histogram durations and the
+# best one is kept at every point (an oracle-tuned baseline, Fig. 16c).
+FIG14_HISTOGRAM_WINDOWS_US = (100, 300, 1000, 3000)
+
+
 def _fig14_specs(ctx):
     specs = []
     for wander, _ in FIG14_OSCILLATORS:
         base = ResearchConfig(num_slots=ctx.slots(10 ** 8), freq_wander_ppm_per_sqrt_ms=wander)
-        for strategy in ("qcs_batch", "qcs_tracking", "ideal"):
+        for strategy in ("qcs_batch", "qcs_tracking", "qcs_data", "ideal"):
             specs.append(("fig14", "distance_km", FIG14_DISTANCES, replace(base, sync_strategy=strategy),
                           ctx.trials(100), f"{strategy}|{wander}"))
+        for window in FIG14_HISTOGRAM_WINDOWS_US:
+            cfg = replace(base, sync_strategy="qcs_histogram", histogram_window_us=window)
+            specs.append(("fig14", "distance_km", FIG14_DISTANCES, cfg, ctx.trials(100),
+                          f"qcs_histogram@{window}|{wander}"))
     return specs
 
 
+def _fig14_best_histogram(rows):
+    """Per oscillator and distance, keep the histogram window with the lowest median error."""
+    best = {}
+    for row in rows:
+        if not row["series"].startswith("qcs_histogram@"):
+            continue
+        head, wander = row["series"].split("|")
+        key = (wander, row["value"])
+        if key not in best or row["sync_rms_error_ns_median"] < best[key]["sync_rms_error_ns_median"]:
+            best[key] = dict(row, histogram_window_us=float(head.split("@")[1]))
+    out = []
+    for (wander, _), row in best.items():
+        out.append(dict(row, series=f"qcs_histogram|{wander}"))
+    return out
+
+
 def fig14_kalman_vs_batch(ctx):
-    """This work (Kalman pilot tracking) against a batch cross-correlation baseline."""
-    fig, axes = new_figure(3, height=3.3)
+    """This work (Kalman tracking) against batch and histogram re-synchronization baselines."""
     oscillators = FIG14_OSCILLATORS
+    fig, axes = new_figure(3, nrows=2, height=5.9)
     specs = _fig14_specs(ctx)
-    rows = _fig14_rows(ctx, specs)
+    raw = _fig14_rows(ctx, specs)
+    rows = [r for r in raw if not r["series"].startswith("qcs_histogram@")] + _fig14_best_histogram(raw)
     ideal = {(r["series"].split("|")[1], r["value"]): r["secret_key_rate_mean"]
              for r in rows if r["series"].startswith("ideal")}
-    for row in rows:
+    for row in raw + rows:
         ref = ideal[(row["series"].split("|")[1], row["value"])]
         row["key_rate_vs_ideal_pct"] = 100 * row["secret_key_rate_mean"] / ref if ref > 0 else float("nan")
-    for strategy in ("qcs_batch", "qcs_tracking"):
-        for wander, name in oscillators:
+    for i, (wander, name) in enumerate(oscillators):
+        row_axes = axes[3 * i: 3 * i + 3]
+        for strategy in FIG14_STRATEGIES:
             group = series_rows(rows, f"{strategy}|{wander}")
             x = [r["value"] for r in group]
             style = dict(color=STRATEGY_STYLE[strategy]["color"], marker=STRATEGY_STYLE[strategy]["marker"],
-                         linestyle="-" if wander < 0.1 else "--")
-            label = ("Kalman tracking (this work)" if strategy == "qcs_tracking"
-                     else "Batch re-sync (prior-art style)") + f", {name}"
-            axes[0].plot(x, [r["sync_rms_error_ns_median"] * 1e3 for r in group], label=label, **style)
-            axes[1].plot(x, [r["timing_capture_rate_mean"] * 100 for r in group], label=label, **style)
-            axes[2].plot(x, [r["key_rate_vs_ideal_pct"] for r in group], label=label, **style)
-    axes[0].set_yscale("log")
-    axes[0].set_ylabel("Gate timing error, median (ps)")
-    axes[1].set_ylabel("Timing capture, mean (%)")
-    axes[1].set_ylim(-4, 104)
-    axes[2].set_ylabel("Key rate relative to perfect sync (%)")
-    axes[2].set_ylim(-4, 110)
-    for ax, letter in zip(axes, "abc"):
+                         linestyle="--" if strategy in ("qcs_batch", "qcs_histogram") else "-")
+            label = FIG14_LABELS[strategy]
+            row_axes[0].plot(x, [r["sync_rms_error_ns_median"] * 1e3 for r in group], label=label, **style)
+            row_axes[1].plot(x, [r["timing_capture_rate_mean"] * 100 for r in group], label=label, **style)
+            row_axes[2].plot(x, [r["key_rate_vs_ideal_pct"] for r in group], label=label, **style)
+        row_axes[0].set_yscale("log")
+        row_axes[0].set_ylabel("Gate timing error, median (ps)")
+        row_axes[1].set_ylabel("Timing capture, mean (%)")
+        row_axes[1].set_ylim(-4, 104)
+        row_axes[2].set_ylabel("Key rate vs perfect sync (%)")
+        row_axes[2].set_ylim(-4, 110)
+        row_axes[0].set_title(f"{name} ({wander} ppm/\u221ams)", loc="left", fontsize=7.5, color=INK_2, pad=10)
+    for ax, letter in zip(axes, "abcdef"):
         ax.set_xlabel("Fibre distance (km)")
         panel_label(ax, letter)
     shared_legend(fig, axes[0], ncol=2)
-    record_stats("fig14", [r for r in rows if not r["series"].startswith("ideal")], "sync_rms_error_ns")
-    write_csv(rows, "fig14_kalman_vs_batch.csv")
+    record_stats("fig14", [r for r in raw if not r["series"].startswith("ideal")], "sync_rms_error_ns")
+    write_csv(rows + [r for r in raw if r["series"].startswith("qcs_histogram@")], "fig14_kalman_vs_batch.csv")
     return save(fig, "fig14_kalman_vs_batch", axes)
 
 
@@ -1018,7 +1054,7 @@ def fig15_tracking_theory(ctx):
 # ---------------------------------------------------------------------------
 
 def fig16_fairness(ctx):
-    fig, axes = new_figure(2, width=DOUBLE_COLUMN * 0.85, height=3.3)
+    fig, axes = new_figure(3, height=3.5)
     trials = ctx.trials(100)
     csv_rows = []
 
@@ -1075,9 +1111,34 @@ def fig16_fairness(ctx):
     axes[1].set_ylabel("Key rate relative to perfect sync (%)")
     below_legend(axes[1], ncol=1)
     record_stats("fig16b", rows_b, "secret_key_rate")
-    for ax, letter in zip(axes, "ab"):
+    # (c) histogram duration of the Millet-style baseline against data-aided
+    # Kalman tracking on the same key clicks, poor oscillator, 1 s segments
+    windows = [30, 100, 300, 1000, 3000, 10000]
+    specs = []
+    for d in (25, 100):
+        base = ResearchConfig(distance_km=d, num_slots=ctx.slots(10 ** 8), freq_wander_ppm_per_sqrt_ms=0.2)
+        specs.append(("fig16c", "histogram_window_us", windows, replace(base, sync_strategy="qcs_histogram"),
+                      trials, f"histogram|{d}"))
+        specs.append(("fig16c", "distance_km", [d], replace(base, sync_strategy="qcs_data"), trials, f"kalman_data|{d}"))
+    rows_c = rs.run_sweeps(specs)
+    for i, d in enumerate((25, 100)):
+        group = series_rows(rows_c, f"histogram|{d}")
+        kalman = series_rows(rows_c, f"kalman_data|{d}")[0]
+        axes[2].plot([r["value"] for r in group], [r["sync_rms_error_ns_median"] * 1e3 for r in group],
+                     color=STRATEGY_STYLE["qcs_histogram"]["color"], marker=SERIES_MARKERS[i],
+                     linestyle="-" if i == 0 else "--", label=f"Histogram re-sync, {d} km")
+        axes[2].axhline(kalman["sync_rms_error_ns_median"] * 1e3, color=STRATEGY_STYLE["qcs_data"]["color"],
+                        linestyle="-" if i == 0 else "--", linewidth=1.2,
+                        label=f"Kalman on key clicks, {d} km")
+    axes[2].set_xscale("log")
+    axes[2].set_yscale("log")
+    axes[2].set_xlabel("Histogram duration T_int (\u00b5s)")
+    axes[2].set_ylabel("Gate timing error, median (ps)")
+    below_legend(axes[2], ncol=1)
+    record_stats("fig16c", rows_c, "sync_rms_error_ns")
+    for ax, letter in zip(axes, "abc"):
         panel_label(ax, letter)
-    write_csv(rows_a + rows_b, "fig16_fairness.csv")
+    write_csv(rows_a + rows_b + rows_c, "fig16_fairness.csv")
     return save(fig, "fig16_fairness", axes)
 
 
