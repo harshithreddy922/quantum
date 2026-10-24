@@ -32,12 +32,18 @@ The contributions of this work, stated "to our knowledge", are:
    Poisson click times, dark counts are outliers that must be gated, and lock
    can be lost; we found no prior work on this, and it is stated "to our
    knowledge".
-   The closest qubit-based work, Millet et al. 2026 (ID Quantique), derives an
-   analytical model linking clock frequency mismatch to QBER and a timestamp-
-   based drift/offset correction; it does not use Kalman filtering (Kalman
-   appears only in its citation of the classical ACES method, Hamilton et al.
-   2008). Our analytical model differs: it predicts the tracker's RMS gate
-   error, lock-loss probability and minimum pilot overhead. Acquisition accuracy is validated against the Cramér–Rao
+   The closest qubit-based work, Millet et al. 2026 (ID Quantique, time-bin
+   BB84, experimental), estimates drift from the circular means of two
+   consecutive start-stop histograms (155 us to 500 ms each), corrects once
+   and repeats: a batch estimator with no memory or uncertainty carried
+   between corrections, dark counts treated as a flat histogram background,
+   and no Kalman filtering (Kalman appears only in its citation of the
+   classical ACES method). Its analytical model links drift-induced time
+   shift to QBER and gives clock-stability requirements; ours predicts the
+   tracker's RMS gate error, lock-loss probability and minimum pilot
+   overhead. Millet et al. use the key detections themselves (no pilots) and
+   validate in the field (100 km lab, 24 h metro network); our 1 % pilot
+   overhead and simulation-only validation must be stated as limitations. Acquisition accuracy is validated against the Cramér–Rao
    bound (Fig. 2c). Against a batch cross-correlation re-synchronization
    baseline representative of published methods, run on the same pilots, the
    tracker gives about 10x lower timing error and keeps lock where the batch
