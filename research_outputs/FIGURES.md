@@ -16,8 +16,11 @@ mean; Fig. 4 uses Wilson intervals. The sample size behind every figure
 The strategies compared are: no synchronization; a classical timing
 reference; QCS with a preamble only; QCS with batch cross-correlation
 re-synchronization on pilots (representative of published qubit-based
-synchronization, e.g. Qubit4Sync); QCS with Kalman pilot tracking (this
-work); and perfect synchronization.
+synchronization, e.g. Qubit4Sync); QCS with histogram re-synchronization on
+key clicks (a reimplementation of Millet et al. 2026, Figs. 14 and 16 only);
+QCS with Kalman tracking (this work), either on 1 % pilots or data-aided on
+key clicks with no pilots (Figs. 14 and 16 only); and perfect
+synchronization.
 
 **Fig. 1 — System model.**
 (a) Alice, the quantum channel and Bob, with the QCS acquisition/tracking
@@ -140,16 +143,25 @@ a random ±s time-shift attack, a variance test on QCS arrival-time residuals
 (false-alarm rate 10⁻³) detects the attack with > 90 % probability at
 s = 0.325 ns (100 detections), 0.175 ns (1 000) and 0.10 ns (10 000).
 
-**Fig. 14 — Kalman tracking versus batch re-synchronization (novelty).**
-Both run on the same 1 % pilots, for a stable (0.01 ppm/√ms) and a poor
-(0.2 ppm/√ms) oscillator. (a) Median gate timing error, (b) mean timing
-capture, (c) key rate relative to perfect synchronization.
-- Stable oscillator: Kalman 25–121 ps up to 100 km against 244–323 ps for
-  batch, i.e. 3–10× lower. At 125 km batch loses lock in 92 % of runs and
-  produces no key; Kalman loses lock in 3 % and keeps a key.
-- Poor oscillator: batch loses lock from 75 km (93 % of runs) and gives no
-  key at 100 km; Kalman holds up to 75 km (167 ps, 98 % of the ideal key)
-  and keeps 71 % at 100 km.
+**Fig. 14 — Kalman tracking versus published-style re-synchronization (novelty).**
+Four methods for a stable (0.01 ppm/√ms, top row) and a poor (0.2 ppm/√ms,
+bottom row) oscillator: batch cross-correlation re-sync on 1 % pilots;
+histogram re-sync on key clicks after Millet et al. 2026, tuned to its best
+histogram duration (100 µs–3 ms) at every point; Kalman tracking on 1 %
+pilots; and Kalman tracking on key clicks with no pilots. (a, d) Median gate
+timing error, (b, e) mean timing capture, (c, f) key rate relative to
+perfect synchronization. 100 runs of 10⁸ slots per point.
+- Kalman on key clicks is the most accurate everywhere: 13–24 ps up to
+  100 km and 68 ps at 150 km (stable); 28–51 ps up to 100 km and 153 ps at
+  150 km (poor). That is 3–5× below the tuned histogram method up to 125 km
+  (39–201 ps stable, 79–420 ps poor) and 8–26× below it at 150 km, with no
+  pilot overhead and no lock loss up to 125 km.
+- At 125 km it keeps 45 % (stable) and 61 % (poor) of the perfect-sync key,
+  against 24 % and 0 % for the histogram method, 15 % and 0 % for Kalman on
+  pilots, and 0 % for batch re-sync.
+- Kalman on pilots: 25–121 ps up to 100 km (stable), 3–10× below batch
+  re-sync (244–323 ps), which loses lock at 125 km (stable) or from 75 km
+  (poor).
 
 **Fig. 15 — Analytical model of the tracker.**
 (a) RMS gate error from the steady-state Riccati solution (lines) against
@@ -166,13 +178,18 @@ about 120 km; a poor oscillator needs 3.2 % at 100 km.
 **Fig. 16 — Fairness checks on the baselines.**
 (a) The batch baseline's batch size is swept (8–256 clicks) with the poor
 oscillator. Its best setting (64 clicks: 207 ps at 25 km; 16 clicks: 1.3 ns at
-100 km) is still 3× (25 km) and 4× (100 km) worse than Kalman tracking
-(69 ps and 287 ps), so the advantage is not an artefact of a badly tuned
-baseline. (b) Key rate against the classical reference's timing error. A
-classical reference better than about 200 ps RMS matches QCS tracking
-(≥ 99 % of perfect sync); at 0.5 ns it gives 83–88 % and at 1 ns 56–67 %. The
-benefit of QCS is therefore removing the separate timing link and its attack
-surface at equal performance, not beating a high-quality classical reference.
+100 km) is still 3× (25 km) and 4× (100 km) worse than Kalman pilot tracking
+(69 ps and 287 ps). (b) Key rate against the classical reference's timing
+error. A classical reference better than about 200 ps RMS matches QCS
+tracking (≥ 99 % of perfect sync); at 0.5 ns it gives 83–88 % and at 1 ns
+56–67 %. The benefit of QCS is removing the separate timing link and its
+attack surface at equal performance, not beating a high-quality classical
+reference. (c) The histogram duration of the Millet-style baseline is swept
+(30 µs–10 ms) on the same key clicks, poor oscillator. Its best duration
+(300 µs: 80 ps at 25 km, 206 ps at 100 km) is still 3× (25 km) and 4×
+(100 km) worse than data-aided Kalman tracking (28 ps and 51 ps). Short
+histograms are too noisy at long range; long ones let the oscillator wander
+off between corrections.
 
 **Table — `table_operating_points.md`.**
 Overhead, gate timing error, capture, QBER, key rate and acceptance at 25,
