@@ -31,7 +31,13 @@ The contributions of this work, stated "to our knowledge", are:
    **discrete-variable, photon-counting** QKD, where measurements are sparse
    Poisson click times, dark counts are outliers that must be gated, and lock
    can be lost; we found no prior work on this, and it is stated "to our
-   knowledge". Acquisition accuracy is validated against the Cramér–Rao
+   knowledge".
+   The closest qubit-based work, Millet et al. 2026 (ID Quantique), derives an
+   analytical model linking clock frequency mismatch to QBER and a timestamp-
+   based drift/offset correction; it does not use Kalman filtering (Kalman
+   appears only in its citation of the classical ACES method, Hamilton et al.
+   2008). Our analytical model differs: it predicts the tracker's RMS gate
+   error, lock-loss probability and minimum pilot overhead. Acquisition accuracy is validated against the Cramér–Rao
    bound (Fig. 2c). Against a batch cross-correlation re-synchronization
    baseline representative of published methods, run on the same pilots, the
    tracker gives about 10x lower timing error and keeps lock where the batch
@@ -268,7 +274,8 @@ Related qubit-based synchronization work (cite in the related-work section):
 - Y. Chen et al., arXiv:2308.13154 — qubit-based distributed frame synchronization; R. Guan et al., arXiv:2510.17659 — field trial.
 - J. Krause et al., Phys. Rev. Applied 23, 044015 (2025) — iQSync offset recovery.
 - C. Spiess, F. Steinlechner, Quantum Sci. Technol. (2023) — clock synchronization with pulsed single photons.
-- L. Millet et al., arXiv:2605.26705 (2026) — clock-drift model and synchronization algorithm.
+- L. Millet, B. Korzh, R. Thew, G. Boso, arXiv:2605.26705 (2026) — clock-drift model (frequency mismatch vs QBER) and timestamp-based synchronization algorithm; no Kalman filter.
+- B. R. Hamilton, X. Ma, Q. Zhao, J. Xu, "ACES: adaptive clock estimation and synchronization using Kalman filtering", MobiCom 2008 — classical-network Kalman clock sync.
 - L. Tiefenthaler et al., Optics Express (2026), arXiv:2605.20857 — decoy-state-based time synchronization.
 
 Kalman filtering in QKD (all continuous-variable phase/polarization tracking,
