@@ -281,6 +281,7 @@ Related qubit-based synchronization work (cite in the related-work section):
 - J. Krause et al., Phys. Rev. Applied 23, 044015 (2025) — iQSync offset recovery.
 - C. Spiess, F. Steinlechner, Quantum Sci. Technol. (2023) — clock synchronization with pulsed single photons.
 - L. Millet, B. Korzh, R. Thew, G. Boso, arXiv:2605.26705 (2026) — clock-drift model (frequency mismatch vs QBER) and timestamp-based synchronization algorithm; no Kalman filter.
+- G. Giorgi, C. Narduzzi, IEEE Trans. Instrum. Meas. 60, 2902 (2011); ISPCS 2013, 59 — Kalman-filter clock servos for IEEE 1588 (classical networks).
 - B. R. Hamilton, X. Ma, Q. Zhao, J. Xu, "ACES: adaptive clock estimation and synchronization using Kalman filtering", MobiCom 2008 — classical-network Kalman clock sync.
 - L. Tiefenthaler et al., Optics Express (2026), arXiv:2605.20857 — decoy-state-based time synchronization.
 
