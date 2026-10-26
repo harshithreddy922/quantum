@@ -575,8 +575,22 @@ def fig08_distance(ctx):
     ax = axes[0]
     base = ResearchConfig(num_slots=ctx.slots(10 ** 8))
     distances = [0, 10, 25, 50, 75, 100, 125, 150, 175, 200]
-    strategies = ("classical", "qcs_preamble", "qcs_batch", "qcs_histogram", "qcs_tracking", "qcs_data", "ideal")
+    strategies = ("classical", "qcs_preamble", "qcs_batch", "qcs_tracking", "qcs_data", "ideal")
     rows = rs.strategy_sweep("fig08", "distance_km", distances, base, ctx.trials(100), strategies)
+    # The histogram baseline is tuned like in Fig. 14: several histogram
+    # durations are simulated and the one with the lowest median timing
+    # error is kept at every distance.
+    candidates = []
+    for window in FIG14_HISTOGRAM_WINDOWS_US:
+        part = rs.strategy_sweep("fig08", "distance_km", distances, replace(base, histogram_window_us=window),
+                                 ctx.trials(100), ("qcs_histogram",))
+        for row in part:
+            candidates.append(dict(row, histogram_window_us=float(window)))
+    best = {}
+    for row in candidates:
+        if row["value"] not in best or row["sync_rms_error_ns_median"] < best[row["value"]]["sync_rms_error_ns_median"]:
+            best[row["value"]] = row
+    rows += list(best.values())
     record_stats("fig08", rows, "secret_key_rate")
 
     fine = np.linspace(0, 220, 221)
@@ -620,7 +634,8 @@ def _write_operating_point_table(rows):
                 "distance_km": d,
                 "strategy": rs.STRATEGY_LABELS[strategy],
                 "sync_overhead_pct": round(r["sync_overhead_mean"] * 100, 2),
-                "gate_rms_error_ps": round(r["sync_rms_error_ns_mean"] * 1e3, 1),
+                "gate_rms_median_ps": round(r["sync_rms_error_ns_median"] * 1e3, 1),
+                "gate_rms_mean_ps": round(r["sync_rms_error_ns_mean"] * 1e3, 1),
                 "timing_capture_pct": round(r["timing_capture_rate_mean"] * 100, 2),
                 "qber_pct": round(r["qber_mean"] * 100, 2),
                 "secret_key_rate_bits_per_slot": f"{r['secret_key_rate_mean']:.3e}",
@@ -632,7 +647,8 @@ def _write_operating_point_table(rows):
     lines += ["| " + " | ".join(str(row[h]) for h in header) + " |" for row in table]
     (OUTPUT_DIR / "table_operating_points.md").write_text(
         "Operating points (decoy-state BB84, key block 10^10 slots, sync simulated over 10^8-slot segments, W = 2 ns, sigma = 0.35 ns, "
-        "offset 4 ns, drift 20 ppm).\n\n" + "\n".join(lines) + "\n", encoding="utf-8")
+        "offset 4 ns, drift 20 ppm). The histogram method uses the best of several histogram durations at each distance. "
+        "Medians are typical blocks; means include blocks that lost lock.\n\n" + "\n".join(lines) + "\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
