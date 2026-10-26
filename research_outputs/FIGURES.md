@@ -165,15 +165,22 @@ perfect synchronization. 100 runs of 10⁸ slots per point.
 
 **Fig. 15 — Analytical model of the tracker.**
 (a) RMS gate error from the steady-state Riccati solution (lines) against
-simulation (markers): e.g. 31.7 vs 32.1 ps at 25 km and 117 vs 121 ps at
-100 km (stable oscillator); 67 vs 68 ps and 286 vs 323 ps (poor). Agreement
-is within a few percent until lock loss starts. (b) Probability of losing
-lock within 1 s. Theory places the 50 % point at 132 km (stable) and 90 km
-(poor); simulation shows 3 % → 76 % between 125 and 150 km and 0 % → 41 % →
-100 % between 75, 100 and 125 km, respectively. (c) Design rule: minimum
-pilot overhead for < 1 % lock loss per second against distance for three
-oscillator qualities. With a stable oscillator 1 % pilots suffice up to
-about 120 km; a poor oscillator needs 3.2 % at 100 km.
+simulation (markers), for Kalman tracking on pilots (solid, circles and
+squares) and on key clicks (dashed, stars): the same formula with the gap
+between pilots replaced by the mean gap between processed key clicks. Pilots:
+31.7 vs 32.1 ps at 25 km and 117 vs 121 ps at 100 km (stable oscillator);
+67 vs 68 ps and 286 vs 323 ps (poor). Key clicks: 12.9 vs 13.1 ps at 25 km
+and 23.3 vs 24.2 ps at 100 km (stable); 49.5 vs 51.3 ps at 100 km (poor).
+Agreement is within 1-9 % up to 125 km for key clicks, and the simulation is
+23-27 % above the theory at 150 km. (b) Probability of losing lock within
+1 s for the pilot tracker. Theory places the 50 % point at 132 km (stable)
+and 90 km (poor); simulation shows 3 % at 125 km and 76 % at 150 km
+(stable) and 41 % at 100 km and 100 % at 125 km (poor). No lock loss is
+modelled for key clicks (none was observed up to 125 km, Fig. 14).
+(c) Design rule: minimum pilot overhead for < 1 % lock loss per second
+against distance for three oscillator qualities. With a stable oscillator
+1 % pilots suffice up to about 120 km; a poor oscillator needs 3.2 % at
+100 km.
 
 **Fig. 16 — Fairness checks on the baselines.**
 (a) The batch baseline's batch size is swept (8–256 clicks) with the poor
