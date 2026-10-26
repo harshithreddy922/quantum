@@ -15,5 +15,6 @@ Before submission
    on the publisher page (about 11 entries). Replace the Millet and Tiefenthaler preprints by journal
    versions if published.
 2. Fill in authors, affiliations, funding and data/code availability statements.
-3. Re-run `python generate_graphs.py` if any parameter changes and re-copy the PDFs.
-4. Check the page limit and the figure/table style of the journal's current guidelines.
+3. Check the claim in the Introduction that the cited estimators work in batches: only Millet et al. was read in full; read the others.
+4. Re-run `python generate_graphs.py` if any parameter changes and re-copy the PDFs.
+5. Check the page limit and the figure/table style of the journal's current guidelines.
