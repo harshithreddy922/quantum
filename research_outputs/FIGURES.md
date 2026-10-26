@@ -87,14 +87,25 @@ against the fraction of slots used as pilots, at 25, 75 and 100 km.
   little gain.
 
 **Fig. 8 — Secret key rate against distance.**
-Finite-key rate for each strategy, with the asymptotic perfect-sync rate and
-the PLOB bound.
-- Kalman tracking is within 2 % of perfect synchronization up to 100 km.
-- It exceeds the classical reference by 6 % (25 km), 11 % (50 km), 13 %
-  (75 km) and 12 % (100 km), and batch re-sync by 2–5 %.
-- At 125 km only tracking and perfect sync give a (tiny) key; nothing is
-  extractable at ≥ 150 km with 10¹⁰-slot blocks.
-- Preamble-only QCS gives essentially no key at any distance.
+Finite-key rate for the classical reference, the three QCS baselines and
+variants (batch re-sync on pilots; histogram re-sync on key clicks after
+Millet et al. 2026, with its histogram duration tuned at every distance;
+Kalman tracking on pilots; Kalman tracking on key clicks) and perfect
+synchronization, with the asymptotic perfect-sync rate and the PLOB bound.
+- Key-click Kalman tracking is within 0.1 % of perfect synchronization up to
+  100 km; pilot Kalman is within 2 %; the tuned histogram method is within
+  0.1 % up to 75 km and 3.6 % at 100 km (QBER 4.3 % against 2.9 %, because
+  3 % of its runs lose lock); batch re-sync is 3-7 % below.
+- Key-click Kalman exceeds the classical reference by 7.5 % (25 km), 12 %
+  (50 km), 15 % (75 km) and 14 % (100 km), and the histogram method by 3.7 %
+  at 100 km. Pilot Kalman exceeds the classical reference by 6 %, 11 %, 13 %
+  and 12 % at the same distances.
+- At 125 km only the Kalman variants give any key. The rate is a few hundred
+  bits per block there, so the percentages are noisy (key-click Kalman: 58 %
+  of perfect here, 45 % in Fig. 14); nothing is extractable at 150 km with
+  10^10-slot blocks.
+- Preamble-only QCS gives essentially no key at any distance and is omitted
+  from the plot (see `table_operating_points.md`).
 
 **Fig. 9 — Sensitivity maps (Kalman tracking).**
 (a) Finite-key rate at 100 km over gate width × jitter. The best gate widens
@@ -199,8 +210,9 @@ histograms are too noisy at long range; long ones let the oscillator wander
 off between corrections.
 
 **Table — `table_operating_points.md`.**
-Overhead, gate timing error, capture, QBER, key rate and acceptance at 25,
-50, 75 and 100 km for each strategy.
+Overhead, median and mean gate timing error (the mean includes blocks that
+lost lock), capture, QBER, key rate and acceptance at 25, 50, 75 and 100 km
+for each strategy.
 
 **Table — `table_statistics.md`.**
 Points, blocks per point, slots per block, total simulated pulse slots and
