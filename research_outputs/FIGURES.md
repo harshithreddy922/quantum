@@ -87,14 +87,25 @@ against the fraction of slots used as pilots, at 25, 75 and 100 km.
   little gain.
 
 **Fig. 8 — Secret key rate against distance.**
-Finite-key rate for each strategy, with the asymptotic perfect-sync rate and
-the PLOB bound.
-- Kalman tracking is within 2 % of perfect synchronization up to 100 km.
-- It exceeds the classical reference by 6 % (25 km), 11 % (50 km), 13 %
-  (75 km) and 12 % (100 km), and batch re-sync by 2–5 %.
-- At 125 km only tracking and perfect sync give a (tiny) key; nothing is
-  extractable at ≥ 150 km with 10¹⁰-slot blocks.
-- Preamble-only QCS gives essentially no key at any distance.
+Finite-key rate for the classical reference, the three QCS baselines and
+variants (batch re-sync on pilots; histogram re-sync on key clicks after
+Millet et al. 2026, with its histogram duration tuned at every distance;
+Kalman tracking on pilots; Kalman tracking on key clicks) and perfect
+synchronization, with the asymptotic perfect-sync rate and the PLOB bound.
+- Key-click Kalman tracking is within 0.1 % of perfect synchronization up to
+  100 km; pilot Kalman is within 2 %; the tuned histogram method is within
+  0.1 % up to 75 km and 3.6 % at 100 km (QBER 4.3 % against 2.9 %, because
+  3 % of its runs lose lock); batch re-sync is 3-7 % below.
+- Key-click Kalman exceeds the classical reference by 7.5 % (25 km), 12 %
+  (50 km), 15 % (75 km) and 14 % (100 km), and the histogram method by 3.7 %
+  at 100 km. Pilot Kalman exceeds the classical reference by 6 %, 11 %, 13 %
+  and 12 % at the same distances.
+- At 125 km only the Kalman variants give any key. The rate is a few hundred
+  bits per block there, so the percentages are noisy (key-click Kalman: 58 %
+  of perfect here, 45 % in Fig. 14); nothing is extractable at 150 km with
+  10^10-slot blocks.
+- Preamble-only QCS gives essentially no key at any distance and is omitted
+  from the plot (see `table_operating_points.md`).
 
 **Fig. 9 — Sensitivity maps (Kalman tracking).**
 (a) Finite-key rate at 100 km over gate width × jitter. The best gate widens
@@ -120,7 +131,7 @@ Median timing capture over 100 independent runs with a 10–90 % band, at
 **Fig. 11 — Finite-key convergence.**
 Key rate against key-block size N at (a) 25 km and (b) 100 km.
 - At 25 km Kalman tracking stays within 1–2 % of perfect synchronization for
-  all N; the classical reference is 9–12 % lower.
+  all N; the classical reference is 9–16 % lower.
 - At 100 km no key is possible below about 3×10⁹ slots; tracking is within
   2–3 % of perfect sync from there on.
 - Both converge slowly towards the asymptotic limit (dotted).
@@ -165,15 +176,22 @@ perfect synchronization. 100 runs of 10⁸ slots per point.
 
 **Fig. 15 — Analytical model of the tracker.**
 (a) RMS gate error from the steady-state Riccati solution (lines) against
-simulation (markers): e.g. 31.7 vs 32.1 ps at 25 km and 117 vs 121 ps at
-100 km (stable oscillator); 67 vs 68 ps and 286 vs 323 ps (poor). Agreement
-is within a few percent until lock loss starts. (b) Probability of losing
-lock within 1 s. Theory places the 50 % point at 132 km (stable) and 90 km
-(poor); simulation shows 3 % → 76 % between 125 and 150 km and 0 % → 41 % →
-100 % between 75, 100 and 125 km, respectively. (c) Design rule: minimum
-pilot overhead for < 1 % lock loss per second against distance for three
-oscillator qualities. With a stable oscillator 1 % pilots suffice up to
-about 120 km; a poor oscillator needs 3.2 % at 100 km.
+simulation (markers), for Kalman tracking on pilots (solid, circles and
+squares) and on key clicks (dashed, stars): the same formula with the gap
+between pilots replaced by the mean gap between processed key clicks. Pilots:
+31.7 vs 32.1 ps at 25 km and 117 vs 121 ps at 100 km (stable oscillator);
+67 vs 68 ps and 286 vs 323 ps (poor). Key clicks: 12.9 vs 13.1 ps at 25 km
+and 23.3 vs 24.2 ps at 100 km (stable); 49.5 vs 51.3 ps at 100 km (poor).
+Agreement is within 1-9 % up to 125 km for key clicks, and the simulation is
+23-27 % above the theory at 150 km. (b) Probability of losing lock within
+1 s for the pilot tracker. Theory places the 50 % point at 132 km (stable)
+and 90 km (poor); simulation shows 3 % at 125 km and 76 % at 150 km
+(stable) and 41 % at 100 km and 100 % at 125 km (poor). No lock loss is
+modelled for key clicks (none was observed up to 125 km, Fig. 14).
+(c) Design rule: minimum pilot overhead for < 1 % lock loss per second
+against distance for three oscillator qualities. With a stable oscillator
+1 % pilots suffice up to about 120 km; a poor oscillator needs 3.2 % at
+100 km.
 
 **Fig. 16 — Fairness checks on the baselines.**
 (a) The batch baseline's batch size is swept (8–256 clicks) with the poor
@@ -192,8 +210,9 @@ histograms are too noisy at long range; long ones let the oscillator wander
 off between corrections.
 
 **Table — `table_operating_points.md`.**
-Overhead, gate timing error, capture, QBER, key rate and acceptance at 25,
-50, 75 and 100 km for each strategy.
+Overhead, median and mean gate timing error (the mean includes blocks that
+lost lock), capture, QBER, key rate and acceptance at 25, 50, 75 and 100 km
+for each strategy.
 
 **Table — `table_statistics.md`.**
 Points, blocks per point, slots per block, total simulated pulse slots and

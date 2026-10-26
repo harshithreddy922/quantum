@@ -7,7 +7,7 @@ fig04,accepted,75,"1,000",1e+08-1e+10,1.0e+11,2.78e+14,0.000
 fig05,timing_capture_rate,150,200,1e+10,2.0e+12,3.00e+14,0.168
 fig06,secret_key_rate,45,100,1e+10,1.0e+12,4.50e+13,0.505
 fig07,secret_key_rate,15,100,1e+10,1.0e+12,1.50e+13,0.111
-fig08,secret_key_rate,50,100,1e+10,1.0e+12,5.00e+13,1.200
+fig08,secret_key_rate,70,100,1e+10,1.0e+12,7.00e+13,0.124
 fig09a,secret_key_rate,64,50,1e+10,5.0e+11,3.20e+13,0.635
 fig09b,secret_key_rate,30,50,1e+10,5.0e+11,1.50e+13,0.099
 fig10,"timing_capture (median, 10-90 % band)",200,100,1e+08,1.0e+10,1.20e+11,
