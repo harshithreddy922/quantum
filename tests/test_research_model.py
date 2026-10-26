@@ -18,7 +18,7 @@ from bb84.security import (  # noqa: E402
     finite_key_length,
     wilson_interval,
 )
-from bb84.timing_attacks import eve_information  # noqa: E402
+from bb84.timing_attacks import eve_information, pooled_tracker_bias  # noqa: E402
 
 
 def test_binary_entropy_values():
@@ -154,3 +154,12 @@ def test_histogram_resync_recovers_known_drift():
         jitter_sigma=0.35, initial_state=(0.0, 0.0, 0.0), window_ns=1e6, period_ns=period)
     assert nu[-1] == pytest.approx(drift, abs=1e-7)
     assert tau[-1] == pytest.approx(offset + drift * t_out[-1], abs=0.05)
+
+
+def test_pooled_key_click_tracker_leaks_almost_nothing():
+    # Worst case in our sweep: 0.8 ns detector mismatch, 5 % click imbalance.
+    bias = pooled_tracker_bias(0.8, 0.05)
+    assert bias == pytest.approx(0.02)                       # 20 ps
+    info, _ = eve_information(np.array([bias]), 0.8, 2.0, 0.35)
+    assert float(info[0]) < 1e-4
+    assert pooled_tracker_bias(0.8, 0.0) == 0.0

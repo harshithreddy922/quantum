@@ -571,11 +571,11 @@ def fig07_sync_overhead(ctx):
 # ---------------------------------------------------------------------------
 
 def fig08_distance(ctx):
-    fig, axes = new_figure(1, width=SINGLE_COLUMN + 0.9, height=4.0)
+    fig, axes = new_figure(1, width=SINGLE_COLUMN + 0.9, height=5.6)
     ax = axes[0]
     base = ResearchConfig(num_slots=ctx.slots(10 ** 8))
     distances = [0, 10, 25, 50, 75, 100, 125, 150, 175, 200]
-    strategies = ("classical", "qcs_preamble", "qcs_batch", "qcs_tracking", "ideal")
+    strategies = ("classical", "qcs_preamble", "qcs_batch", "qcs_histogram", "qcs_tracking", "qcs_data", "ideal")
     rows = rs.strategy_sweep("fig08", "distance_km", distances, base, ctx.trials(100), strategies)
     record_stats("fig08", rows, "secret_key_rate")
 
@@ -590,7 +590,7 @@ def fig08_distance(ctx):
             label="Asymptotic, perfect sync")
     # Preamble-only QCS loses lock within a 1 s block (see table_operating_points);
     # it is simulated for the table but not drawn.
-    for strategy in ("classical", "qcs_batch", "qcs_tracking", "ideal"):
+    for strategy in ("classical", "qcs_batch", "qcs_histogram", "qcs_tracking", "qcs_data", "ideal"):
         label = rs.STRATEGY_LABELS[strategy]
         if strategy == "ideal":
             label += " (finite key)"
@@ -600,7 +600,7 @@ def fig08_distance(ctx):
     ax.set_xlim(-5, 215)
     ax.set_xlabel("Fibre distance (km)")
     ax.set_ylabel("Secret key rate (bits/slot)")
-    below_legend(ax, ncol=2)
+    below_legend(ax, ncol=1)
     write_csv(rows, "fig08_distance.csv")
     _write_operating_point_table(rows)
     return save(fig, "fig08_distance")
@@ -608,7 +608,7 @@ def fig08_distance(ctx):
 
 def _write_operating_point_table(rows):
     keep = [25, 50, 75, 100]
-    order = ("classical", "qcs_preamble", "qcs_batch", "qcs_tracking", "ideal")
+    order = ("classical", "qcs_preamble", "qcs_batch", "qcs_histogram", "qcs_tracking", "qcs_data", "ideal")
     table = []
     for d in keep:
         for strategy in order:
@@ -1002,14 +1002,32 @@ def fig15_tracking_theory(ctx):
                 pilot_period=cfg.pilot_spacing_slots * cfg.clock_period_ns, dark_per_pilot=dark))
         group = series_rows(rows, f"qcs_tracking|{wander}")
         x = [r_["value"] for r_ in group]
-        axes[0].plot(fine, theory_rms, color=color, linewidth=1.2, label=f"Theory, {name}")
+        axes[0].plot(fine, theory_rms, color=color, linewidth=1.2, label=f"Theory, pilots, {name.split()[0]}")
         axes[0].plot(x, [r_["sync_rms_error_ns_median"] * 1e3 for r_ in group], color=color, linestyle="none",
-                     marker=SERIES_MARKERS[i], label=f"Simulation, {name}")
+                     marker=SERIES_MARKERS[i], label=f"Sim., pilots, {name.split()[0]}")
         axes[1].plot(fine, theory_lost, color=color, linewidth=1.2, label=f"Theory, {name}")
         lost = [100 * r_["lock_lost_mean"] for r_ in group]
         lost_ci = [100 * r_["lock_lost_ci95"] for r_ in group]
         axes[1].errorbar(x, lost, yerr=lost_ci, color=color, linestyle="none", marker=SERIES_MARKERS[i],
                          capsize=1.8, elinewidth=0.8, label=f"Simulation, {name}")
+        # Same steady-state model for data-aided tracking on key clicks: only
+        # the mean gap between processed clicks changes.
+        theory_data = []
+        for d in fine:
+            cfg = ResearchConfig(distance_km=float(d), num_slots=ctx.slots(10 ** 8), freq_wander_ppm_per_sqrt_ms=wander)
+            _, _, q, r, _ = _theory_inputs(cfg)
+            theory_data.append(tt.rms_gate_error(q, r, rs.data_aided_click_gap_ns(cfg)) * 1e3)
+        data_group = series_rows(rows, f"qcs_data|{wander}")
+        axes[0].plot(fine, theory_data, color=color, linewidth=1.2, linestyle="--",
+                     label=f"Theory, clicks, {name.split()[0]}")
+        axes[0].plot([r_["value"] for r_ in data_group], [r_["sync_rms_error_ns_median"] * 1e3 for r_ in data_group],
+                     color=color, linestyle="none", marker="*", markersize=6,
+                     label=f"Sim., clicks, {name.split()[0]}")
+        csv_rows += [{"panel": "a_data", "oscillator_wander": wander, "distance_km": d, "theory_rms_ps": v}
+                     for d, v in zip(fine, theory_data)]
+        csv_rows += [{"panel": "a_data_mc", "oscillator_wander": wander, "distance_km": r_["value"],
+                      "mc_rms_median_ps": r_["sync_rms_error_ns_median"] * 1e3, "trials": r_["trials"]}
+                     for r_ in data_group]
         csv_rows += [{"panel": "a", "oscillator_wander": wander, "distance_km": d, "theory_rms_ps": v}
                      for d, v in zip(fine, theory_rms)]
         csv_rows += [{"panel": "b", "oscillator_wander": wander, "distance_km": d, "theory_lock_loss_pct": v}
@@ -1019,7 +1037,7 @@ def fig15_tracking_theory(ctx):
                       "mc_lock_loss_pct": 100 * r_["lock_lost_mean"], "trials": r_["trials"]} for r_ in group]
     axes[0].set_yscale("log")
     axes[0].set_ylabel("Gate timing error (ps)")
-    axes[0].set_ylim(10, 2e4)
+    axes[0].set_ylim(8, 2e4)
     axes[1].set_ylabel("Lock lost within 1 s (%)")
     axes[1].set_ylim(-4, 104)
 
@@ -1043,7 +1061,7 @@ def fig15_tracking_theory(ctx):
     for ax, letter in zip(axes, "abc"):
         ax.set_xlabel("Fibre distance (km)")
         panel_label(ax, letter)
-    shared_legend(fig, axes[0], ncol=2)
+    shared_legend(fig, axes[0], ncol=4)
     below_legend(axes[2], ncol=1)
     write_csv(csv_rows, "fig15_tracking_theory.csv")
     return save(fig, "fig15_tracking_theory", axes)

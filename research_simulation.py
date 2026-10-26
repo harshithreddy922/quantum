@@ -264,6 +264,15 @@ def _key_click_probability(config):
     return eta
 
 
+def data_aided_click_gap_ns(config):
+    """Mean time between the signal clicks the data-aided tracker processes."""
+    p_sig = _key_click_probability(config)
+    p_dark = 1 - math.exp(-2 * config.dark_count_rate_hz * config.clock_period_ns * 1e-9)
+    p_event = 1 - (1 - p_sig) * (1 - p_dark)
+    keep = min(1.0, config.data_max_events / max(config.num_slots * p_event, 1.0))
+    return config.clock_period_ns / (p_sig * keep)
+
+
 def _key_click_events(config, rng, key_start, eta_key, p_dark):
     """
     Time tags of key-slot clicks used for data-aided synchronization. The

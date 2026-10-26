@@ -203,6 +203,48 @@ measures the timing error with variance r = σ_jitter².
 4. **Design rule.** Solving P_lost ≤ 1 % per second for the pilot spacing gives
    the minimum pilot overhead versus distance and oscillator quality
    (Fig. 15c).
+5. **Data-aided tracking on key clicks.** The same steady state applies with Δ
+   replaced by the mean gap between the signal clicks the tracker processes,
+   Δ_data = T_slot / (p_click · keep), where p_click is the intensity-weighted
+   click probability per key slot and keep ≤ 1 is the thinning factor that
+   caps processing at 10⁶ clicks per segment
+   (`research_simulation.data_aided_click_gap_ns`). It reproduces the
+   simulated timing error to within 1–4 % up to 100 km and 9 % at 125 km
+   (Fig. 15a, dashed). Lock loss is not modelled for this version: with
+   Δ_data of 1–50 µs the overrun hazard is negligible and no lock loss was
+   observed up to 125 km (Fig. 14).
+
+### 2.6 Security of synchronizing on key clicks
+
+Pilots carry no key information. Key clicks do, so the argument that using
+their arrival times is safe must be made explicitly.
+
+- **The time tags never leave Bob.** The tracker's inputs (arrival times) and
+  state stay inside Bob's receiver; only basis choices and the tested bits are
+  announced. The tracker output is a gate position, not a message, so it does
+  not add a public channel.
+- **Arrival time carries no bit information in the ideal receiver.** In
+  polarization (or phase) BB84 the detector that fires encodes the bit, not
+  the arrival time, and the pulse envelope is the same for both bits.
+- **Detector mismatch is the only coupling.** If the two detectors' gates are
+  offset by ±μ/2 (Makarov et al. 2006), a tracker that pools their tags is
+  biased by (μ/2)(p₁ − p₀), where p₁ − p₀ is the click imbalance
+  (`timing_attacks.pooled_tracker_bias`). With random bits the imbalance is
+  ~1/√N for N detected clicks (10⁻² for 10⁴ clicks, 10⁻³ for 10⁶). For the
+  worst mismatch we sweep (0.8 ns) a 5 % imbalance gives a 20 ps static gate
+  offset and at most 2×10⁻⁵ bit of information per sifted bit, and a realistic
+  10⁻³ imbalance gives 0.4 ps and 9×10⁻⁹ bit. A mismatch that does exist is
+  already the vulnerability of Fig. 13; the tracker does not widen it.
+- **Eve can move arrival times, as with any timing reference.** A uniform
+  delay or a ramp is absorbed by the tracker (zero relative shift), and a
+  random time-shift attack widens the residuals, which the same variance test
+  of Fig. 13c applies unchanged; its power only increases with the number of
+  detections, and key clicks supply far more than pilots (10⁶ versus 10²–10⁴
+  per segment).
+- **Limitations to state:** the argument assumes Bob's detectors are
+  characterized to the extent that the mismatch is bounded, and a
+  composable security proof that includes the synchronization layer is left
+  to future work.
 
 ### 2.4 Statistics and reproducibility
 
