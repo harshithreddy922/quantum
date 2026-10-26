@@ -131,7 +131,7 @@ Median timing capture over 100 independent runs with a 10–90 % band, at
 **Fig. 11 — Finite-key convergence.**
 Key rate against key-block size N at (a) 25 km and (b) 100 km.
 - At 25 km Kalman tracking stays within 1–2 % of perfect synchronization for
-  all N; the classical reference is 9–12 % lower.
+  all N; the classical reference is 9–16 % lower.
 - At 100 km no key is possible below about 3×10⁹ slots; tracking is within
   2–3 % of perfect sync from there on.
 - Both converge slowly towards the asymptotic limit (dotted).

@@ -259,7 +259,7 @@ def fig01_system_model(ctx):
     _box(ax, 0.1, 1.15, 2.6, 2.1, "Alice", [
         "QRNG bits and bases", "BB84 polarization encoder",
         "clock: one pulse per 10 ns slot",
-        "sync preamble + secret pilot slots",
+        "sync preamble + optional pilot slots",
     ], SERIES[0])
     _box(ax, 3.55, 1.15, 2.9, 2.1, "Quantum channel", [
         "fibre loss 0.2 dB/km", "Pauli noise (bit error 2p/3)",
@@ -268,7 +268,7 @@ def fig01_system_model(ctx):
     ], SERIES[1])
     _box(ax, 7.3, 1.15, 2.6, 2.1, "Bob", [
         "D0/D1 gated detectors (W ns)", "time tagger, dark counts",
-        "QCS: drift-search acquisition", "+ Kalman pilot tracking",
+        "QCS: drift-search acquisition", "+ Kalman (pilots or key clicks)",
     ], SERIES[0])
     for x0, x1 in ((2.7, 3.55), (6.45, 7.3)):
         ax.add_patch(FancyArrowPatch((x0, 2.2), (x1, 2.2), arrowstyle="-|>",
