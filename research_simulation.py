@@ -38,6 +38,8 @@ from bb84.qcs_tracking import (
     acquire_preamble,
     predict_timing_error,
     run_batch_resync,
+    run_chunked_tracker,
+    run_histogram_resync,
     run_timing_tracker,
 )
 from bb84.security import (
@@ -54,12 +56,17 @@ MASTER_SEED = 20261007
 CAPTURE_SAMPLE_POINTS = 50_000
 
 SYNC_STRATEGIES = ("none", "classical", "qcs_preamble", "qcs_batch", "qcs_tracking", "ideal")
+# Strategies that synchronize from key-slot clicks instead of pilots.
+DATA_AIDED_STRATEGIES = ("qcs_histogram", "qcs_data")
+QCS_STRATEGIES = ("qcs_preamble", "qcs_batch", "qcs_tracking") + DATA_AIDED_STRATEGIES
 STRATEGY_LABELS = {
     "none": "No synchronization",
     "classical": "Classical reference",
     "qcs_preamble": "QCS (preamble only)",
     "qcs_batch": "QCS, batch re-sync (prior-art style)",
     "qcs_tracking": "QCS (preamble + pilot tracking)",
+    "qcs_histogram": "QCS, histogram re-sync on key clicks (Millet-style)",
+    "qcs_data": "QCS, Kalman tracking on key clicks (no pilots)",
     "ideal": "Perfect synchronization",
 }
 
@@ -106,6 +113,8 @@ class ResearchConfig:
     classical_residual_ns: float = 0.5
     prior_drift_ppm: float = 100.0           # acquisition search range
     batch_detections: int = 32               # clicks per batch for the batch baseline
+    histogram_window_us: float = 1000.0      # per-histogram duration, Millet-style baseline
+    data_max_events: int = 10 ** 6           # key clicks per segment used for data-aided sync
 
     # Protocol
     test_fraction: float = 0.1
@@ -227,7 +236,7 @@ def _sync_slot_layout(config):
     """Times of preamble and pilot sync slots and the overhead they cost."""
     period = config.clock_period_ns
     strategy = config.sync_strategy
-    if strategy not in ("qcs_preamble", "qcs_batch", "qcs_tracking"):
+    if strategy not in QCS_STRATEGIES:
         return np.empty(0), np.empty(0), 0, 0.0
 
     # Bob keeps the preamble running until he expects the target number of
@@ -245,6 +254,43 @@ def _sync_slot_layout(config):
 
     overhead_slots = preamble_slots + len(pilot_times)
     return pre_times, pilot_times, overhead_slots, preamble_slots * period
+
+
+def _key_click_probability(config):
+    """Chance that a key slot yields a photon click (any intensity, any basis)."""
+    eta = total_efficiency(config)
+    if config.source == "decoy":
+        return sum(p * (1 - math.exp(-eta * mu)) for mu, p in zip(config.intensities, config.intensity_probs))
+    return eta
+
+
+def data_aided_click_gap_ns(config):
+    """Mean time between the signal clicks the data-aided tracker processes."""
+    p_sig = _key_click_probability(config)
+    p_dark = 1 - math.exp(-2 * config.dark_count_rate_hz * config.clock_period_ns * 1e-9)
+    p_event = 1 - (1 - p_sig) * (1 - p_dark)
+    keep = min(1.0, config.data_max_events / max(config.num_slots * p_event, 1.0))
+    return config.clock_period_ns / (p_sig * keep)
+
+
+def _key_click_events(config, rng, key_start, eta_key, p_dark):
+    """
+    Time tags of key-slot clicks used for data-aided synchronization. The
+    arrival time of a click carries no information about the bit or basis
+    (polarization encoding, matched detectors), so Bob may use every click.
+    At short range the stream is thinned to about data_max_events per
+    segment, which is far more than the tracker needs.
+    """
+    first = int(round(key_start / config.clock_period_ns))
+    n_key = max(0, config.num_slots - first)
+    p_event = 1 - (1 - eta_key) * (1 - p_dark)
+    keep = min(1.0, config.data_max_events / max(n_key * p_event, 1.0))
+    n = rng.binomial(n_key, p_event * keep)
+    slots = np.sort(rng.integers(first, config.num_slots, n))
+    times = slots * config.clock_period_ns
+    signal = rng.random(n) < eta_key / p_event
+    dark = ~signal | (rng.random(n) < p_dark)
+    return times, signal, dark
 
 
 def synchronize(config, rng, wander):
@@ -295,32 +341,44 @@ def synchronize(config, rng, wander):
     # Stage 2: Kalman tracking on interleaved pilots.
     # Kalman process noise matched to the oscillator's frequency wander.
     tracker_q = (max(config.freq_wander_ppm_per_sqrt_ms, 0.005) * 1e-6) ** 2 / 1e6
-    # Pilot clicks are time-tagged over the whole clock slot; dark counts
-    # in that window are removed by the tracker's innovation gate.
+    # Clicks are time-tagged over the whole clock slot; dark counts in that
+    # window are removed by the tracker's innovation gate.
     acq_pilot = config.clock_period_ns / 2
-    p_dark_pilot = 1 - math.exp(-2 * config.dark_count_rate_hz * 2 * acq_pilot * 1e-9)
-    pilot_survive = rng.random(len(pilot_times)) < eta
-    pilot_dark = rng.random(len(pilot_times)) < p_dark_pilot
-    events = pilot_survive | pilot_dark
-    times = pilot_times[events]
-    # Stage 2 runs either the Kalman tracker (this work) or the batch
-    # cross-correlation baseline on exactly the same pilot clicks.
-    stage2 = run_batch_resync if strategy == "qcs_batch" else run_timing_tracker
-    stage2_kwargs = ({"batch_detections": config.batch_detections} if strategy == "qcs_batch"
-                     else {"process_noise_nu": tracker_q})
+    p_dark_slot = 1 - math.exp(-2 * config.dark_count_rate_hz * 2 * acq_pilot * 1e-9)
+    if strategy in DATA_AIDED_STRATEGIES:
+        times, signal, dark = _key_click_events(config, rng, key_start, eta_key=_key_click_probability(config),
+                                                p_dark=p_dark_slot)
+        stage2_detections = int(signal.sum())
+    else:
+        pilot_survive = rng.random(len(pilot_times)) < eta
+        pilot_dark = rng.random(len(pilot_times)) < p_dark_slot
+        events = pilot_survive | pilot_dark
+        times, signal, dark = pilot_times[events], pilot_survive[events], pilot_dark[events]
+        stage2_detections = int(pilot_survive.sum())
+    # Stage 2 runs the Kalman tracker (this work) or a baseline on exactly
+    # the same kind of clicks.
+    if strategy == "qcs_batch":
+        stage2, stage2_kwargs = run_batch_resync, {"batch_detections": config.batch_detections}
+    elif strategy == "qcs_histogram":
+        stage2, stage2_kwargs = run_histogram_resync, {"window_ns": config.histogram_window_us * 1e3,
+                                                       "period_ns": config.clock_period_ns}
+    elif strategy == "qcs_data":
+        stage2, stage2_kwargs = run_chunked_tracker, {"process_noise_nu": tracker_q}
+    else:
+        stage2, stage2_kwargs = run_timing_tracker, {"process_noise_nu": tracker_q}
     update_t, tau, nu = stage2(
         event_times=times,
         true_error=true_timing_error(config, times, wander),
-        signal_present=pilot_survive[events],
+        signal_present=signal,
         jitter=rng.normal(0.0, jitter, len(times)),
-        dark_present=pilot_dark[events],
+        dark_present=dark,
         dark_uniform=rng.random(len(times)),
         acquisition_half_width=np.full(len(times), acq_pilot),
         jitter_sigma=jitter,
         initial_state=state,
         **stage2_kwargs,
     )
-    sync_detections = int(survive.sum() + pilot_survive.sum())
+    sync_detections = int(survive.sum()) + stage2_detections
     freeze = key_start if strategy == "qcs_preamble" else None
 
     def gate_error(t):

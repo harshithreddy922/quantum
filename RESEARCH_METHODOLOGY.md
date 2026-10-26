@@ -31,11 +31,28 @@ The contributions of this work, stated "to our knowledge", are:
    **discrete-variable, photon-counting** QKD, where measurements are sparse
    Poisson click times, dark counts are outliers that must be gated, and lock
    can be lost; we found no prior work on this, and it is stated "to our
-   knowledge". Acquisition accuracy is validated against the Cramér–Rao
-   bound (Fig. 2c). Against a batch cross-correlation re-synchronization
-   baseline representative of published methods, run on the same pilots, the
-   tracker gives about 10x lower timing error and keeps lock where the batch
-   method fails (Fig. 14).
+   knowledge".
+   The closest qubit-based work, Millet et al. 2026 (ID Quantique, time-bin
+   BB84, experimental), estimates drift from the circular means of two
+   consecutive start-stop histograms (155 us to 500 ms each), corrects once
+   and repeats: a batch estimator with no memory or uncertainty carried
+   between corrections, dark counts treated as a flat histogram background,
+   and no Kalman filtering (Kalman appears only in its citation of the
+   classical ACES method). Its analytical model links drift-induced time
+   shift to QBER and gives clock-stability requirements; ours predicts the
+   tracker's RMS gate error, lock-loss probability and minimum pilot
+   overhead. Millet et al. use the key detections themselves (no pilots) and
+   validate in the field (100 km lab, 24 h metro network); our results are
+   simulation only, which must be stated as a limitation.
+   Acquisition accuracy is validated against the Cramér–Rao bound (Fig. 2c).
+   The tracker runs either on 1 % interleaved pilots or **data-aided**, on
+   the time tags of ordinary key clicks with no pilot overhead (the arrival
+   time of a click carries no bit or basis information). Fig. 14 compares it
+   with two baselines on the same clicks: batch cross-correlation re-sync on
+   pilots, and a reimplementation of the Millet et al. two-histogram
+   circular-mean method on key clicks (including its short-to-long histogram
+   convergence schedule), tuned to its best histogram duration at every
+   point (Fig. 16c).
 3. A comparison against realistic baselines (no synchronization, a classical
    timing reference with sub-ns residual error, preamble-only QCS, batch
    re-synchronization, and perfect synchronization) under clock offset,
@@ -79,6 +96,8 @@ Synchronization strategies (`research_simulation.SYNC_STRATEGIES`):
 | QCS, preamble only | acquisition fit, extrapolated for the whole block | preamble slots |
 | QCS, batch re-sync (baseline) | acquisition, then a fresh cross-correlation fit per batch of 32 pilot clicks, held until the next batch | preamble + 1 % pilot slots |
 | QCS, preamble + tracking | acquisition, then Kalman updates from pilots | preamble + 1 % pilot slots |
+| QCS, histogram re-sync (baseline) | acquisition, then Millet et al. 2026: circular means of two consecutive histograms of key-click tags folded over T, one correction per pair; histograms start at ~10 clicks and grow 4x every 3 corrections up to T_int | preamble only |
+| QCS, data-aided tracking | acquisition, then Kalman updates from key-click tags (thinned to ≤ 10⁶ per segment, applied in groups of ≤ 25 clicks) | preamble only |
 | Perfect synchronization | true error | none |
 
 **Acquisition.** The preamble sends one pulse every 5 slots (50 ns) until
@@ -184,6 +203,48 @@ measures the timing error with variance r = σ_jitter².
 4. **Design rule.** Solving P_lost ≤ 1 % per second for the pilot spacing gives
    the minimum pilot overhead versus distance and oscillator quality
    (Fig. 15c).
+5. **Data-aided tracking on key clicks.** The same steady state applies with Δ
+   replaced by the mean gap between the signal clicks the tracker processes,
+   Δ_data = T_slot / (p_click · keep), where p_click is the intensity-weighted
+   click probability per key slot and keep ≤ 1 is the thinning factor that
+   caps processing at 10⁶ clicks per segment
+   (`research_simulation.data_aided_click_gap_ns`). It reproduces the
+   simulated timing error to within 1–4 % up to 100 km and 9 % at 125 km
+   (Fig. 15a, dashed). Lock loss is not modelled for this version: with
+   Δ_data of 1–50 µs the overrun hazard is negligible and no lock loss was
+   observed up to 125 km (Fig. 14).
+
+### 2.6 Security of synchronizing on key clicks
+
+Pilots carry no key information. Key clicks do, so the argument that using
+their arrival times is safe must be made explicitly.
+
+- **The time tags never leave Bob.** The tracker's inputs (arrival times) and
+  state stay inside Bob's receiver; only basis choices and the tested bits are
+  announced. The tracker output is a gate position, not a message, so it does
+  not add a public channel.
+- **Arrival time carries no bit information in the ideal receiver.** In
+  polarization (or phase) BB84 the detector that fires encodes the bit, not
+  the arrival time, and the pulse envelope is the same for both bits.
+- **Detector mismatch is the only coupling.** If the two detectors' gates are
+  offset by ±μ/2 (Makarov et al. 2006), a tracker that pools their tags is
+  biased by (μ/2)(p₁ − p₀), where p₁ − p₀ is the click imbalance
+  (`timing_attacks.pooled_tracker_bias`). With random bits the imbalance is
+  ~1/√N for N detected clicks (10⁻² for 10⁴ clicks, 10⁻³ for 10⁶). For the
+  worst mismatch we sweep (0.8 ns) a 5 % imbalance gives a 20 ps static gate
+  offset and at most 2×10⁻⁵ bit of information per sifted bit, and a realistic
+  10⁻³ imbalance gives 0.4 ps and 9×10⁻⁹ bit. A mismatch that does exist is
+  already the vulnerability of Fig. 13; the tracker does not widen it.
+- **Eve can move arrival times, as with any timing reference.** A uniform
+  delay or a ramp is absorbed by the tracker (zero relative shift), and a
+  random time-shift attack widens the residuals, which the same variance test
+  of Fig. 13c applies unchanged; its power only increases with the number of
+  detections, and key clicks supply far more than pilots (10⁶ versus 10²–10⁴
+  per segment).
+- **Limitations to state:** the argument assumes Bob's detectors are
+  characterized to the extent that the mismatch is bounded, and a
+  composable security proof that includes the synchronization layer is left
+  to future work.
 
 ### 2.4 Statistics and reproducibility
 
@@ -220,9 +281,9 @@ measures the timing error with variance r = σ_jitter².
 | 11 | `fig11_finite_key` | Convergence to the asymptotic rate with block size |
 | 12 | `fig12_key_budget` | Where the sifted bits go (test, EC, PA, finite-size) |
 | 13 | `fig13_timing_attacks` | Delay and time-shift attacks on the sync layer |
-| 14 | `fig14_kalman_vs_batch` | This work's Kalman tracking versus the batch re-sync baseline (novelty) |
+| 14 | `fig14_kalman_vs_batch` | Kalman tracking (pilots and data-aided) versus batch and Millet-style histogram re-sync, two oscillators (novelty) |
 | 15 | `fig15_tracking_theory` | Analytical tracking error and lock-loss model versus simulation; minimum pilot overhead |
-| 16 | `fig16_fairness` | Batch size tuned for the baseline; classical-reference quality sweep |
+| 16 | `fig16_fairness` | Batch size and histogram duration tuned for the baselines; classical-reference quality sweep |
 | — | `table_operating_points` | Numbers for the comparison table in the paper |
 | — | `table_statistics` | Sample size and precision behind every figure |
 
@@ -268,7 +329,9 @@ Related qubit-based synchronization work (cite in the related-work section):
 - Y. Chen et al., arXiv:2308.13154 — qubit-based distributed frame synchronization; R. Guan et al., arXiv:2510.17659 — field trial.
 - J. Krause et al., Phys. Rev. Applied 23, 044015 (2025) — iQSync offset recovery.
 - C. Spiess, F. Steinlechner, Quantum Sci. Technol. (2023) — clock synchronization with pulsed single photons.
-- L. Millet et al., arXiv:2605.26705 (2026) — clock-drift model and synchronization algorithm.
+- L. Millet, B. Korzh, R. Thew, G. Boso, arXiv:2605.26705 (2026) — clock-drift model (frequency mismatch vs QBER) and timestamp-based synchronization algorithm; no Kalman filter.
+- G. Giorgi, C. Narduzzi, IEEE Trans. Instrum. Meas. 60, 2902 (2011); ISPCS 2013, 59 — Kalman-filter clock servos for IEEE 1588 (classical networks).
+- B. R. Hamilton, X. Ma, Q. Zhao, J. Xu, "ACES: adaptive clock estimation and synchronization using Kalman filtering", MobiCom 2008 — classical-network Kalman clock sync.
 - L. Tiefenthaler et al., Optics Express (2026), arXiv:2605.20857 — decoy-state-based time synchronization.
 
 Kalman filtering in QKD (all continuous-variable phase/polarization tracking,

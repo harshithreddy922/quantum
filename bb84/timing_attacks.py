@@ -53,6 +53,19 @@ def eve_information(shift_ns, mismatch_ns, window_ns, jitter_ns):
     return information, total / reference
 
 
+def pooled_tracker_bias(mismatch_ns, click_imbalance):
+    """
+    Static gate offset (ns) of a tracker that pools the time tags of both
+    detectors (data-aided synchronization on key clicks).
+
+    A D0 click is centred at -mismatch/2 and a D1 click at +mismatch/2, so
+    the pooled mean is shifted by (mismatch/2) * (p1 - p0), where
+    click_imbalance = p1 - p0. With random bits the imbalance is only the
+    statistical fluctuation, about 1/sqrt(N) for N detected clicks.
+    """
+    return 0.5 * mismatch_ns * click_imbalance
+
+
 def _detected_residuals(rng, size, shift_ns, mismatch_ns, window_ns, jitter_ns):
     """Arrival-time residuals of detected photons (rejection sampling)."""
     out = []
