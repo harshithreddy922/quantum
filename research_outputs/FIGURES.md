@@ -20,7 +20,9 @@ synchronization, e.g. Qubit4Sync); QCS with histogram re-synchronization on
 key clicks (a reimplementation of Millet et al. 2026, Figs. 14 and 16 only);
 QCS with Kalman tracking (this work), either on 1 % pilots or data-aided on
 key clicks with no pilots (Figs. 14 and 16 only); and perfect
-synchronization.
+synchronization. No single figure shows all of them: Figs. 5 and 10 plot six
+lines, Fig. 6 five, Fig. 8 six, Fig. 11 three, Fig. 14 four, and Figs. 7, 9 and
+15 only the Kalman tracker.
 
 **Fig. 1 — System model.**
 (a) Alice, the quantum channel and Bob, with the QCS acquisition/tracking
