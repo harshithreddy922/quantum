@@ -64,7 +64,7 @@ STRATEGY_LABELS = {
     "classical": "Classical reference",
     "qcs_preamble": "QCS (preamble only)",
     "qcs_batch": "QCS, batch re-sync (prior-art style)",
-    "qcs_tracking": "QCS (preamble + pilot tracking)",
+    "qcs_tracking": "QCS, Kalman tracking on pilots",
     "qcs_histogram": "QCS, histogram re-sync on key clicks (Millet-style)",
     "qcs_data": "QCS, Kalman tracking on key clicks (no pilots)",
     "ideal": "Perfect synchronization",
